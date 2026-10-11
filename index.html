@@ -1,0 +1,848 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Трекер объявлений аренды</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: шапка с вкладками-счётчиками, затем простой список объектов: слева объект и ставка, справа две задачи с кнопками; подробности свёрнуты */
+:root{
+  --bg:#f3f4f1; --surface:#ffffff; --sunk:#eceee9; --line:#d9ddd5;
+  --fg:#1d2420; --muted:#66716a; --accent:#1f6b52; --accent-fg:#ffffff; --accent-soft:#dcefe6;
+  --late:#b3361f; --late-soft:#f8e1db; --due:#9a6400; --due-soft:#f6ebd2; --ok:#2c7a4b; --ok-soft:#ddf0e3;
+  --f-body:"Golos Text",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-num:"JetBrains Mono",ui-monospace,Consolas,monospace;
+  --r:12px; color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#151a17; --surface:#1d2420; --sunk:#232b26; --line:#34403a;
+  --fg:#e7ece8; --muted:#9aa79f; --accent:#5fc49b; --accent-fg:#0e1a14; --accent-soft:#1f3a2f;
+  --late:#ff8a73; --late-soft:#3d2320; --due:#e7b04f; --due-soft:#3a2f1a; --ok:#79d39a; --ok-soft:#1d3426; color-scheme:dark}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 var(--f-body)}
+.wrap{max-width:960px;margin:0 auto;padding-inline:16px;padding-block:24px 64px;display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}
+h1{font-size:24px;line-height:1.2;margin:0;font-weight:700}
+.h-actions{display:flex;gap:8px;flex-wrap:wrap}
+.sync{font-size:13px;color:var(--muted);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sync .dot{width:8px;height:8px}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+button{font:inherit;font-weight:500;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:7px 14px;cursor:pointer;white-space:nowrap}
+button:hover{border-color:var(--muted)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+button.ghost{background:transparent;border-color:transparent;color:var(--muted);padding-inline:8px}
+button.ghost:hover{color:var(--fg)}
+button.danger{color:var(--late)}
+button:disabled{opacity:.45;cursor:default}
+.notice{background:var(--due-soft);border-radius:8px;padding:10px 14px;font-size:14px}
+.notice.bad{background:var(--late-soft)}
+.toast{background:var(--accent-soft);color:var(--fg);border-radius:8px;padding:10px 14px;font-size:14px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.tabs button{border:0;border-radius:0;background:transparent;padding:10px 14px;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;display:inline-flex;gap:8px;align-items:center}
+.tabs button[aria-pressed="true"]{color:var(--fg);border-bottom-color:var(--accent);font-weight:600}
+.count{font-family:var(--f-num);font-size:12px;background:var(--sunk);color:var(--muted);border-radius:999px;padding:1px 8px}
+.count.hot{background:var(--late-soft);color:var(--late)}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;font-size:14px;color:var(--muted)}
+#search{font:inherit;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg);width:240px;max-width:100%;min-width:0}
+.list{display:flex;flex-direction:column;gap:10px}
+.row{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:12px 20px;align-items:start}
+.r-main{min-width:0;display:flex;flex-direction:column;gap:4px}
+.r-title{margin:0;font-size:16px;font-weight:600;overflow-wrap:anywhere}
+.r-title a{color:inherit;text-decoration-color:var(--line);text-underline-offset:3px}
+.r-price{font-family:var(--f-num);font-size:20px;font-weight:600;line-height:1.2}
+.r-price small{font-size:13px;font-weight:400;color:var(--muted);margin-left:6px}
+.r-sub{color:var(--muted);font-size:13px}
+.tasks{display:flex;flex-direction:column;gap:8px;min-width:0}
+.task{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:10px;align-items:center;background:var(--sunk);border-radius:8px;padding:8px 8px 8px 12px}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--ok);display:inline-block}
+.dot.late{background:var(--late)} .dot.due{background:var(--due)} .dot.off{background:var(--line)}
+.task b{display:block;font-weight:500;font-size:14px;overflow-wrap:anywhere}
+.task small{display:block;font-size:13px;color:var(--muted)}
+.task small.late{color:var(--late);font-weight:600} .task small.due{color:var(--due);font-weight:600}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;background:var(--sunk);color:var(--muted)}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+details.more{grid-column:1/-1;border-top:1px solid var(--line);padding-top:8px;font-size:14px}
+details.more summary{cursor:pointer;color:var(--muted);font-size:13px;list-style:none;display:inline-flex;gap:6px;align-items:center}
+details.more summary::-webkit-details-marker{display:none}
+details.more summary::before{content:"▸";transition:transform .15s}
+details.more[open] summary::before{transform:rotate(90deg)}
+.more-body{display:flex;flex-direction:column;gap:12px;padding-top:10px}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px 20px;margin:0}
+.facts div{display:flex;flex-direction:column}
+.facts dt{font-size:12px;color:var(--muted)}
+.facts dd{margin:0;font-family:var(--f-num);font-weight:600}
+.advice{background:var(--accent-soft);border-radius:8px;padding:10px 12px;font-size:14px}
+.hist{margin:0;padding-left:18px;color:var(--muted);font-size:13px}
+.m-actions{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.confirm{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px}
+.empty{background:var(--surface);border:1px dashed var(--line);border-radius:var(--r);padding:32px 20px;text-align:center;color:var(--muted)}
+.copybox{width:100%;min-height:140px;font:13px/1.5 var(--f-num)}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--fg);padding:0;width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 32px)}
+dialog::backdrop{background:rgba(10,20,15,.45)}
+form.f{padding:20px;display:flex;flex-direction:column;gap:14px}
+form.f h2{margin:0;font-size:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);min-width:0}
+label.wide{grid-column:1/-1}
+input,select,textarea{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;min-width:0}
+textarea{min-height:56px;resize:vertical}
+details.set{border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+details.set summary{cursor:pointer;font-size:14px}
+details.set summary span{color:var(--muted);font-size:13px}
+details.set .grid{padding-top:12px}
+.preview{background:var(--sunk);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--muted)}
+.preview ol{margin:4px 0 0;padding-left:20px}
+.f-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.err{color:var(--late);font-size:13px}
+.help{font-size:13px;color:var(--muted);margin:0}
+.help.center{text-align:center}
+.auth{max-width:400px;width:100%;margin:8vh auto 0;display:flex;flex-direction:column;gap:12px;padding-inline:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px}
+label.check{flex-direction:row;align-items:center;gap:8px;color:var(--fg);font-size:14px}
+label.check input{width:auto}
+fieldset{border:0;margin:0;padding:0}
+legend{padding:0;margin-bottom:8px}
+.users{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.users li{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--sunk);border-radius:8px;padding:6px 6px 6px 12px;font-family:var(--f-num);font-size:14px}
+.pwbox{background:var(--ok-soft);border-radius:8px;padding:12px;font-size:14px;display:flex;flex-direction:column;gap:6px}
+.pwbox code{font:600 18px/1.3 var(--f-num);letter-spacing:.04em;user-select:all;overflow-wrap:anywhere}
+@media (max-width:680px){.row{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap" id="app" hidden>
+  <header>
+    <div>
+      <h1>Объявления аренды</h1>
+      <div class="sync" id="sync"><span class="dot off" id="syncDot"></span><span id="syncText">Не подключено</span></div>
+    </div>
+    <div class="h-actions">
+      <button type="button" id="copyBtn">Сводка для Telegram</button>
+      <button type="button" id="usersBtn" hidden>Сотрудники</button>
+      <button type="button" id="logoutBtn" hidden>Выйти</button>
+      <button class="primary" id="addBtn" type="button">+ Новый объект</button>
+    </div>
+  </header>
+
+  <div id="storeNote" class="notice" hidden></div>
+  <div id="toast" class="toast" hidden></div>
+
+  <nav class="tabs" aria-label="Разделы">
+    <button type="button" data-f="todo" aria-pressed="true">Сегодня <span class="count" id="cTodo">0</span></button>
+    <button type="button" data-f="active" aria-pressed="false">Активные <span class="count" id="cActive">0</span></button>
+    <button type="button" data-f="archive" aria-pressed="false">Архив <span class="count" id="cArchive">0</span></button>
+  </nav>
+  <div class="toolbar">
+    <span id="tabHint">Задачи, которые нужно сделать сегодня или уже просрочены.</span>
+    <input id="search" type="search" placeholder="Поиск по адресу или сотруднику" aria-label="Поиск">
+  </div>
+
+  <section class="list" id="list" aria-live="polite">
+    <div class="empty">Загружаю объекты…</div>
+  </section>
+</div>
+
+<!-- Вход сотрудника -->
+<section class="auth" id="auth" hidden>
+  <form class="f card" id="loginForm" novalidate>
+    <h2>Вход</h2>
+    <label>Логин<input id="l_login" autocomplete="username" autocapitalize="off" spellcheck="false"></label>
+    <label>Пароль<input id="l_pass" type="password" autocomplete="current-password"></label>
+    <label class="check"><input id="l_remember" type="checkbox"> Запомнить на этом компьютере</label>
+    <div class="err" id="lErr" hidden></div>
+    <button type="submit" class="primary" id="lBtn">Войти</button>
+    <p class="help">Логин и пароль выдаёт руководитель. Если забыли пароль, попросите выдать новый.</p>
+  </form>
+  <p class="help center" id="setupHint" hidden>Список сотрудников ещё не создан. <button type="button" class="ghost" id="setupBtn">Первичная настройка</button></p>
+</section>
+
+<!-- Первичная настройка: создаёт первого руководителя -->
+<dialog id="setupDlg">
+  <form class="f" id="setupForm" novalidate>
+    <h2>Первичная настройка</h2>
+    <p class="help">Укажите репозиторий с данными и токен GitHub. Трекер создаст вашу учётную запись руководителя и файл users.json, который нужно загрузить в репозиторий со страницей.</p>
+    <div class="grid">
+      <label>Владелец репозитория<input id="s_owner" placeholder="логин или организация" autocomplete="off" spellcheck="false"></label>
+      <label>Репозиторий с данными<input id="s_repo" value="arenda-data" autocomplete="off" spellcheck="false"></label>
+      <label>Файл с данными<input id="s_path" value="listings.json" autocomplete="off" spellcheck="false"></label>
+      <label>Ветка<input id="s_branch" value="main" autocomplete="off" spellcheck="false"></label>
+      <label class="wide">Токен доступа GitHub<input id="s_token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…"></label>
+      <label>Ваш логин<input id="s_login" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="например, boss"></label>
+      <label>Ваше имя<input id="s_name" autocomplete="off" placeholder="Например: Ирина"></label>
+    </div>
+    <div class="err" id="sErr" hidden></div>
+    <div class="f-actions">
+      <button type="button" class="ghost" id="sCancel">Отмена</button>
+      <button type="submit" class="primary" id="sSave">Проверить и создать</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Сотрудники (только для руководителя) -->
+<dialog id="usersDlg">
+  <form class="f" id="userForm" novalidate>
+    <h2>Сотрудники</h2>
+    <ul class="users" id="usersList"></ul>
+    <fieldset class="grid">
+      <legend class="help">Добавить сотрудника или выдать новый пароль</legend>
+      <label>Логин<input id="u_login" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="например, anna"></label>
+      <label>Имя (для истории)<input id="u_name" autocomplete="off" placeholder="Анна"></label>
+      <label class="check wide"><input id="u_admin" type="checkbox"> Руководитель (может управлять сотрудниками)</label>
+    </fieldset>
+    <div class="err" id="uErr" hidden></div>
+    <div class="pwbox" id="pwBox" hidden></div>
+    <div class="notice" id="uPending" hidden>Список изменён. Скачайте users.json и замените им файл в репозитории со страницей. Изменения заработают через несколько минут после загрузки.</div>
+    <div class="f-actions">
+      <button type="button" class="ghost" id="uClose">Закрыть</button>
+      <button type="button" id="uDownload">Скачать users.json</button>
+      <button type="submit" class="primary" id="uAdd">Создать пароль</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg">
+  <form class="f" id="form" novalidate>
+    <h2 id="fTitle">Новый объект</h2>
+    <div class="grid">
+      <label class="wide">Адрес или название<input id="f_title" required placeholder="ул. Ленина 12, помещение 3"></label>
+      <label>Дата размещения<input id="f_pub" type="date" required></label>
+      <label>Полная ставка, ₽/мес<input id="f_rent" type="number" min="0" step="1000" required></label>
+      <label>Ответственный<input id="f_resp" placeholder="Имя сотрудника"></label>
+      <label>Текущая скидка, %<input id="f_disc" type="number" min="0" max="100" step="0.5"></label>
+      <label class="wide">Ссылка на объявление<input id="f_link" type="url" placeholder="https://…"></label>
+    </div>
+    <details class="set" id="setBox">
+      <summary>Настройки напоминаний <span id="setSum"></span></summary>
+      <div class="grid">
+        <label>Обновлять объявление каждые, дней<input id="f_refEvery" type="number" min="1" step="1"></label>
+        <label>Последнее обновление<input id="f_refLast" type="date"></label>
+        <label>Снижать ставку каждые, дней<input id="f_stepDays" type="number" min="1" step="1"></label>
+        <label>Шаг снижения, %<input id="f_stepPct" type="number" min="0.5" max="100" step="0.5"></label>
+        <label>Максимальная скидка, %<input id="f_maxPct" type="number" min="0" max="100" step="1"></label>
+        <label>Срок скидки по договору, мес<input id="f_term" type="number" min="1" step="1"></label>
+      </div>
+    </details>
+    <label>Комментарий<textarea id="f_note" placeholder="Особенности объекта, договорённости с собственником"></textarea></label>
+    <div class="preview" id="fPreview"></div>
+    <div class="err" id="fErr" hidden></div>
+    <div class="f-actions">
+      <button type="button" class="ghost" id="fCancel">Отмена</button>
+      <button type="submit" class="primary" id="fSave">Сохранить</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(() => {
+  const DEF = { refEvery: 3, stepDays: 14, stepPct: 5, maxPct: 30, term: 11 };
+  const DAYS_IN_MONTH = 30.4;
+  const SESSION_KEY = 'arenda-session';
+  const pageFetch = window.fetch.bind(window); // для файлов рядом со страницей
+  const TAB_KEY = 'arenda-gh-tab';
+  const POLL_MS = 60 * 1000;
+  const $ = s => document.querySelector(s);
+  const rub = n => Math.round(n).toLocaleString('ru-RU') + ' ₽';
+  const pct = n => (Math.round(n * 10) / 10).toLocaleString('ru-RU') + '%';
+  const mon = n => (Math.round(n * 10) / 10).toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+  // --- даты (локальные, без времени) ---
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const todayISO = () => iso(new Date());
+  const parse = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+  const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
+  const diff = (a, b) => Math.round((parse(b) - parse(a)) / 864e5);
+  const fmtDate = s => parse(s).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+  function plural(n, one, few, many) { const a = Math.abs(n) % 100, b = a % 10; if (a > 10 && a < 20) return many; if (b > 1 && b < 5) return few; if (b === 1) return one; return many; }
+  const dn = n => `${n} ${plural(n, 'день', 'дня', 'дней')}`;
+  const whenText = d => d < 0 ? `просрочено на ${dn(-d)}` : d === 0 ? 'сегодня' : d === 1 ? 'завтра' : `через ${dn(d)}`;
+  const level = d => d < 0 ? 'late' : d <= 1 ? 'due' : 'ok';
+
+  // --- расчёт по объекту ---
+  function calc(o) {
+    const t = todayISO();
+    const end = o.status === 'archived' && o.closedAt ? o.closedAt : t;
+    const daysOn = Math.max(0, diff(o.publishedAt, end));
+    const idleMonths = daysOn / DAYS_IN_MONTH;
+    const disc = o.discountPct;
+    const refNext = addDays(o.lastRefreshAt || o.publishedAt, o.refreshEvery);
+    const redNext = addDays(o.lastReduceAt || o.publishedAt, o.stepDays);
+    const atMax = disc >= o.maxPct;
+    const nextDisc = Math.min(o.maxPct, disc + o.stepPct);
+    return {
+      daysOn, idleMonths, disc, refNext, redNext, atMax, nextDisc,
+      curRent: o.fullRent * (1 - disc / 100),
+      refIn: diff(t, refNext), redIn: diff(t, redNext),
+      nextRent: o.fullRent * (1 - nextDisc / 100),
+      idleLoss: o.fullRent * idleMonths,
+      // из таблицы: безубыточный простой X = скидка × срок скидки Y
+      breakEvenNext: nextDisc / 100 * o.term,
+      discTotalNext: o.fullRent * nextDisc / 100 * o.term,
+      equivDisc: Math.min(100, idleMonths / o.term * 100),
+    };
+  }
+  const needsAction = (o, c) => o.status === 'active' && (c.refIn <= 0 || (!c.atMax && c.redIn <= 0));
+  const urgency = (o, c) => Math.min(c.refIn, c.atMax ? 1e5 : c.redIn);
+
+  // --- проверка данных из файла: его может править любой, у кого есть доступ, поэтому всё приводим к ожидаемым типам ---
+  const okDate = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(parse(v)) ? v : null;
+  const numIn = (v, min, max, fb) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fb; };
+  const str = (v, max) => typeof v === 'string' ? v.slice(0, max) : '';
+  const safeUrl = v => { if (typeof v !== 'string' || !v) return ''; try { const u = new URL(v); return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : ''; } catch (e) { return ''; } };
+  function normalize(d) {
+    const pub = okDate(d && d.publishedAt);
+    const id = d && d.id;
+    if (!pub || typeof id !== 'string' || !/^[A-Za-z0-9_\-]{1,64}$/.test(id)) return null;
+    return {
+      id, title: str(d.title, 200) || 'Без названия', link: safeUrl(d.link), publishedAt: pub,
+      fullRent: numIn(d.fullRent, 0, 1e9, 0), resp: str(d.resp, 100),
+      refreshEvery: Math.round(numIn(d.refreshEvery, 1, 365, DEF.refEvery)), lastRefreshAt: okDate(d.lastRefreshAt),
+      stepDays: Math.round(numIn(d.stepDays, 1, 365, DEF.stepDays)), stepPct: numIn(d.stepPct, 0.5, 100, DEF.stepPct),
+      maxPct: numIn(d.maxPct, 0, 100, DEF.maxPct), discountPct: numIn(d.discountPct, 0, 100, 0),
+      term: Math.round(numIn(d.term, 1, 120, DEF.term)), note: str(d.note, 1000),
+      status: d.status === 'archived' ? 'archived' : 'active',
+      outcome: d.outcome === 'rented' || d.outcome === 'withdrawn' ? d.outcome : null,
+      closedAt: okDate(d.closedAt), lastReduceAt: okDate(d.lastReduceAt), createdAt: okDate(d.createdAt),
+      history: Array.isArray(d.history) ? d.history.filter(h => h && okDate(h.d)).slice(0, 40)
+        .map(h => ({ d: h.d, text: str(h.text, 300), by: str(h.by, 60) })) : [],
+    };
+  }
+
+  // --- вход по логину и паролю ---
+  // users.json лежит рядом со страницей и публичен. В нём для каждого логина зашифрован (AES-GCM,
+  // ключ из пароля через PBKDF2) общий токен GitHub и настройки. Без верного пароля токен не получить.
+  const NAME_RE = /^[A-Za-z0-9_.\-]{1,100}$/;
+  const PATH_RE = /^[A-Za-z0-9_.\-\/]{1,200}$/;
+  const LOGIN_RE = /^[a-z0-9_.\-]{2,40}$/;
+  const ITER = 600000;
+  const te = new TextEncoder(), td = new TextDecoder();
+  const toB64 = buf => { const b = new Uint8Array(buf); let s = ''; b.forEach(c => s += String.fromCharCode(c)); return btoa(s); };
+  const fromB64 = s => Uint8Array.from(atob(s), ch => ch.charCodeAt(0));
+  async function deriveKey(pw, salt, iter) {
+    const base = await crypto.subtle.importKey('raw', te.encode(pw), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: iter, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  }
+  async function seal(login, pw, payload) {
+    const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+    const key = await deriveKey(pw, salt, ITER);
+    const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: te.encode(login) }, key, te.encode(JSON.stringify(payload)));
+    return { login, iter: ITER, salt: toB64(salt), iv: toB64(iv), ct: toB64(ct) };
+  }
+  async function unseal(entry, pw) {
+    const iter = Math.max(ITER, Number(entry.iter) || 0);
+    const key = await deriveKey(pw, fromB64(entry.salt), iter);
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(entry.iv), additionalData: te.encode(entry.login) }, key, fromB64(entry.ct));
+    return JSON.parse(td.decode(pt));
+  }
+  // пароль: 14 случайных символов без похожих букв (≈80 бит)
+  function genPassword() {
+    const abc = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const out = []; const buf = new Uint32Array(1);
+    while (out.length < 14) { crypto.getRandomValues(buf); if (buf[0] < Math.floor(2 ** 32 / abc.length) * abc.length) out.push(abc[buf[0] % abc.length]); }
+    return out.join('').replace(/(.{4})(?=.)/g, '$1-');
+  }
+  function validCfg(p) {
+    return p && NAME_RE.test(p.owner) && NAME_RE.test(p.repo) && PATH_RE.test(p.path) && !p.path.includes('..') && NAME_RE.test(p.branch) && typeof p.token === 'string' && p.token.length > 10;
+  }
+  async function fetchUsers() {
+    let r;
+    try { r = await pageFetch('users.json', { cache: 'no-store' }); } catch (e) { return { error: 'net' }; }
+    if (r.status === 404) return { missing: true, users: [] };
+    if (!r.ok) return { error: 'net' };
+    try { const j = await r.json(); return { users: Array.isArray(j.users) ? j.users.filter(u => u && LOGIN_RE.test(u.login) && u.salt && u.iv && u.ct) : [] }; }
+    catch (e) { return { error: 'format' }; }
+  }
+
+  // сессия: в sessionStorage до закрытия вкладки или в localStorage при «Запомнить»
+  let cfg = null;
+  for (const st of [sessionStorage, localStorage]) {
+    try { const c = JSON.parse(st.getItem(SESSION_KEY) || 'null'); if (validCfg(c)) { cfg = c; break; } } catch (e) {}
+  }
+  function startSession(c, remember) {
+    cfg = c;
+    try { (remember ? localStorage : sessionStorage).setItem(SESSION_KEY, JSON.stringify(c)); } catch (e) {}
+  }
+  function endSession() {
+    for (const st of [sessionStorage, localStorage]) { try { st.removeItem(SESSION_KEY); } catch (e) {} }
+    cfg = null; items = []; bad = []; sha = null;
+  }
+
+  // --- работа с GitHub (Contents API) ---
+  const b64e = s => { const bytes = new TextEncoder().encode(s); let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(bin); };
+  const b64d = s => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\s/g, '')), ch => ch.charCodeAt(0)));
+  const ghErr = (code, msg) => Object.assign(new Error(msg), { code });
+  async function gh(c, path, opts = {}) {
+    let r;
+    try {
+      r = await fetch('https://api.github.com' + path, {
+        method: opts.method || 'GET', cache: 'no-store',
+        headers: { Authorization: 'Bearer ' + c.token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...(opts.body ? { 'Content-Type': 'application/json' } : {}) },
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+      });
+    } catch (e) { throw ghErr('net', 'Нет связи с GitHub. Проверьте интернет.'); }
+    if (r.status === 401) throw ghErr('auth', 'GitHub не принял токен доступа: он отозван или истёк. Сообщите руководителю.');
+    return r;
+  }
+  const filePath = c => `/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}/contents/${c.path.split('/').map(encodeURIComponent).join('/')}`;
+
+  // bad: записи, которые не прошли проверку; их не показываем, но и не теряем при сохранении
+  let items = [], bad = [], sha = null, skipped = 0, busy = false, lastSync = null;
+  const apply = res => { items = res.list; bad = res.bad; sha = res.sha; skipped = res.skipped; };
+
+  async function load(c = cfg) {
+    const r = await gh(c, filePath(c) + '?ref=' + encodeURIComponent(c.branch));
+    if (r.status === 404) {
+      const repo = await gh(c, `/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}`);
+      if (!repo.ok) throw ghErr('repo', 'Репозиторий не найден, или у токена нет к нему доступа. Проверьте владельца, название и права токена.');
+      return { list: [], sha: null, skipped: 0, bad: [] }; // файла ещё нет: создадим при первом сохранении
+    }
+    if (r.status === 403) throw ghErr('perm', 'Доступ запрещён. У токена нет прав на этот репозиторий или исчерпан лимит запросов.');
+    if (!r.ok) throw ghErr('net', `GitHub ответил ошибкой ${r.status}. Повторите позже.`);
+    const j = await r.json();
+    if (j.encoding !== 'base64' || typeof j.content !== 'string') throw ghErr('big', 'Файл данных больше 1 МБ. Перенесите старые записи из архива в отдельный файл.');
+    let data;
+    try { data = JSON.parse(b64d(j.content)); } catch (e) { throw ghErr('format', 'Файл данных повреждён: это не JSON. Откатите последнее изменение в истории репозитория.'); }
+    const rawList = Array.isArray(data) ? data : Array.isArray(data && data.listings) ? data.listings : [];
+    const list = [], bad = [];
+    rawList.forEach(r => { const o = normalize(r); if (o) list.push(o); else bad.push(r); });
+    return { list, sha: j.sha, skipped: bad.length, bad };
+  }
+
+  async function refresh(quiet) {
+    if (!cfg || busy) return;
+    try {
+      apply(await load()); lastSync = new Date();
+      hideNote(); setSync('ok');
+    } catch (e) { setSync('bad'); if (!quiet || e.code !== 'net') note(e.message, true); }
+    render();
+  }
+
+  // изменение = функция над свежим списком; при конфликте перечитываем файл и применяем её заново
+  async function mutate(fn, message) {
+    if (!cfg) throw ghErr('cfg', 'Войдите заново.');
+    busy = true; setSync('busy'); render();
+    try {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        if (attempt > 0) apply(await load());
+        const next = fn(items.map(o => structuredClone(o)));
+        if (!next) return;
+        const body = { message: `${message}${cfg.name ? ' — ' + cfg.name : ''}`, content: b64e(JSON.stringify({ version: 1, listings: [...next, ...bad] }, null, 1) + '\n'), branch: cfg.branch };
+        if (sha) body.sha = sha;
+        const r = await gh(cfg, filePath(cfg), { method: 'PUT', body });
+        if (r.ok) { const j = await r.json(); sha = j.content && j.content.sha; items = next; lastSync = new Date(); hideNote(); return; }
+        if (r.status === 409 || r.status === 422) continue; // файл успели изменить: перечитать и повторить
+        if (r.status === 403 || r.status === 404) throw ghErr('perm', 'Нет права записи. Токену нужно разрешение Contents: Read and write для этого репозитория.');
+        throw ghErr('net', `GitHub ответил ошибкой ${r.status}. Повторите позже.`);
+      }
+      throw ghErr('conflict', 'Файл одновременно меняют другие сотрудники. Повторите действие.');
+    } catch (e) { note(e.message, true); setSync('bad'); throw e; }
+    finally { busy = false; if ($('#syncDot').className.indexOf('late') < 0) setSync('ok'); render(); }
+  }
+
+  function setSync(state) {
+    const dot = $('#syncDot'), t = $('#syncText');
+    if (!cfg) { dot.className = 'dot off'; t.textContent = 'Не подключено к GitHub'; return; }
+    const where = `${cfg.owner}/${cfg.repo}`;
+    if (state === 'busy') { dot.className = 'dot due'; t.textContent = `Сохраняю в ${where}…`; return; }
+    if (state === 'bad') { dot.className = 'dot late'; t.textContent = `Ошибка связи с ${where}`; return; }
+    dot.className = 'dot'; t.textContent = `GitHub: ${where}${lastSync ? ' · обновлено в ' + lastSync.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : ''}`;
+  }
+  function note(msg, bad) { const n = $('#storeNote'); n.textContent = msg; n.classList.toggle('bad', !!bad); n.hidden = false; }
+  function hideNote() { $('#storeNote').hidden = true; }
+  let toastT;
+  function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 4000); }
+
+  // --- действия ---
+  const who = () => (cfg && cfg.name) || '';
+  const entry = text => ({ d: todayISO(), text, by: who() });
+  async function act(id, kind) {
+    const o0 = items.find(x => x.id === id); if (!o0) return;
+    const titles = { refresh: 'Обновлено объявление', reduce: 'Снижена ставка', skip: 'Отложено снижение', rented: 'Сдано', withdrawn: 'Снято с публикации', reopen: 'Возвращено в активные' };
+    await mutate(list => {
+      const o = list.find(x => x.id === id); if (!o) return null;
+      const c = calc(o); const t = todayISO();
+      const h = text => { o.history = [entry(text), ...o.history].slice(0, 40); };
+      if (kind === 'refresh') { o.lastRefreshAt = t; h('Объявление обновлено'); }
+      if (kind === 'reduce') { if (c.atMax) return null; o.discountPct = c.nextDisc; o.lastReduceAt = t; h(`Ставка снижена до ${rub(c.nextRent)} (скидка ${pct(c.nextDisc)})`); }
+      if (kind === 'skip') { o.lastReduceAt = t; h(`Снижение отложено на ${dn(o.stepDays)}`); }
+      if (kind === 'rented') { o.status = 'archived'; o.outcome = 'rented'; o.closedAt = t; h(`Сдано за ${rub(c.curRent)}, срок поиска ${dn(c.daysOn)}`); }
+      if (kind === 'withdrawn') { o.status = 'archived'; o.outcome = 'withdrawn'; o.closedAt = t; h(`Снято с публикации через ${dn(c.daysOn)}`); }
+      if (kind === 'reopen') { o.status = 'active'; o.outcome = null; o.closedAt = null; h('Возвращено в активные'); }
+      return list;
+    }, `${titles[kind] || 'Изменение'}: ${o0.title}`);
+    if (kind === 'rented' || kind === 'withdrawn') toast('Перенесено в архив.');
+  }
+
+  // --- отрисовка ---
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const dis = () => busy || !cfg ? 'disabled' : '';
+  const HINTS = {
+    todo: 'Задачи, которые нужно сделать сегодня или уже просрочены.',
+    active: 'Все объявления в работе, сначала самые срочные.',
+    archive: 'Завершённые объявления: сданные и снятые с публикации.',
+  };
+  let filter = 'todo', q = '';
+  try { const f = localStorage.getItem(TAB_KEY); if (['todo', 'active', 'archive'].includes(f)) filter = f; } catch (e) {}
+
+  function render() {
+    const all = items.map(o => ({ o, c: calc(o) }));
+    const active = all.filter(r => r.o.status === 'active');
+    const todo = active.filter(r => needsAction(r.o, r.c));
+    const archive = all.filter(r => r.o.status === 'archived');
+    $('#cTodo').textContent = todo.length; $('#cTodo').classList.toggle('hot', todo.length > 0);
+    $('#cActive').textContent = active.length; $('#cArchive').textContent = archive.length;
+    document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.f === filter)));
+    $('#tabHint').textContent = HINTS[filter];
+    $('#addBtn').disabled = busy || !cfg;
+
+    const list = $('#list');
+    if (!cfg) { list.innerHTML = ''; return; }
+    let rows = filter === 'todo' ? todo : filter === 'active' ? active : archive;
+    if (q) rows = rows.filter(r => (r.o.title + ' ' + r.o.resp).toLowerCase().includes(q));
+    if (filter === 'archive') rows.sort((a, b) => (b.o.closedAt || '').localeCompare(a.o.closedAt || ''));
+    else rows.sort((a, b) => urgency(a.o, a.c) - urgency(b.o, b.c));
+
+    const warn = skipped ? `<div class="notice">Пропущено повреждённых записей: ${skipped}. Они остаются в файле, но не показываются, пока в них нет корректной даты размещения.</div>` : '';
+    if (!items.length) { list.innerHTML = warn + `<div class="empty">Объектов пока нет. Нажмите «+ Новый объект», укажите дату размещения и ставку. Даты обновления и снижения трекер посчитает сам.</div>`; return; }
+    if (!rows.length) {
+      const msg = q ? 'Ничего не найдено.' : filter === 'todo' ? 'На сегодня всё сделано. Ближайшие задачи есть во вкладке «Активные».' : filter === 'archive' ? 'В архиве пока пусто. Объявление попадает сюда после кнопки «Завершить».' : 'Активных объявлений нет.';
+      list.innerHTML = warn + `<div class="empty">${msg}</div>`; return;
+    }
+    list.innerHTML = warn + rows.map(({ o, c }) => o.status === 'archived' ? archRow(o, c) : row(o, c)).join('');
+  }
+
+  const titleHtml = o => o.link ? `<a href="${esc(o.link)}" target="_blank" rel="noopener noreferrer">${esc(o.title)}</a>` : esc(o.title);
+
+  function row(o, c) {
+    const priceSub = c.disc ? `<small>скидка ${pct(c.disc)} от ${rub(o.fullRent)}</small>` : '<small>полная ставка</small>';
+    const refT = `<div class="task"><span class="dot ${level(c.refIn)}"></span>
+      <div><b>Обновить объявление</b><small class="${level(c.refIn)}">${whenText(c.refIn)}${c.refIn > 0 ? ', ' + fmtDate(c.refNext) : ''}</small></div>
+      <button type="button" data-a="refresh" data-id="${o.id}" ${dis()}>Обновил</button></div>`;
+    const redT = c.atMax
+      ? `<div class="task"><span class="dot off"></span><div><b>Скидка на максимуме (${pct(o.maxPct)})</b><small>Дальше снижать только по решению руководителя</small></div><span></span></div>`
+      : `<div class="task"><span class="dot ${level(c.redIn)}"></span>
+        <div><b>Снизить до <span class="num">${rub(c.nextRent)}</span></b><small class="${level(c.redIn)}">${whenText(c.redIn)}${c.redIn > 0 ? ', ' + fmtDate(c.redNext) : ''}</small></div>
+        <button type="button" data-a="reduce" data-id="${o.id}" ${dis()}>Снизил</button></div>`;
+    const advice = c.atMax ? '' : `<div class="advice">Следующая скидка ${pct(c.nextDisc)} на ${o.term} мес. обойдётся в <b class="num">${rub(c.discTotalNext)}</b>. Она выгодна, если без неё объект простоит ещё больше <b class="num">${mon(c.breakEvenNext)} мес.</b></div>`;
+    return `<article class="row">
+      <div class="r-main">
+        <h2 class="r-title">${titleHtml(o)}</h2>
+        <div class="r-price">${rub(c.curRent)}${priceSub}</div>
+        <div class="r-sub">На сайте ${dn(c.daysOn)}${o.resp ? ' · ' + esc(o.resp) : ''}</div>
+      </div>
+      <div class="tasks">${refT}${redT}</div>
+      <details class="more"><summary>Подробнее</summary><div class="more-body">
+        ${advice}
+        <dl class="facts">
+          <div><dt>Размещено</dt><dd>${fmtDate(o.publishedAt)}</dd></div>
+          <div><dt>Потеряно на простое</dt><dd>${rub(c.idleLoss)}</dd></div>
+          <div><dt>Это равно скидке на ${o.term} мес.</dt><dd>${pct(c.equivDisc)}</dd></div>
+          <div><dt>График</dt><dd>−${pct(o.stepPct)} каждые ${dn(o.stepDays)}</dd></div>
+        </dl>
+        ${o.note ? `<div class="r-sub">${esc(o.note)}</div>` : ''}
+        ${hist(o)}
+        <div class="m-actions">
+          ${c.atMax ? '' : `<button type="button" class="ghost" data-a="skip" data-id="${o.id}" ${dis()}>Отложить снижение</button>`}
+          <button type="button" class="ghost" data-a="edit" data-id="${o.id}" ${dis()}>Изменить</button>
+          <span class="confirm" data-box="${o.id}"><button type="button" data-a="finish" data-id="${o.id}" ${dis()}>Завершить…</button></span>
+          ${delBtn(o)}
+        </div>
+      </div></details>
+    </article>`;
+  }
+
+  function archRow(o, c) {
+    const out = o.outcome === 'rented' ? '<span class="pill ok">Сдано</span>' : o.outcome === 'withdrawn' ? '<span class="pill">Снято с публикации</span>' : '<span class="pill">Завершено</span>';
+    return `<article class="row">
+      <div class="r-main">
+        <h2 class="r-title">${titleHtml(o)}</h2>
+        <div class="r-price">${rub(c.curRent)}${c.disc ? `<small>скидка ${pct(c.disc)}</small>` : ''}</div>
+        <div class="r-sub">${o.resp ? esc(o.resp) : ''}</div>
+      </div>
+      <div class="tasks"><div class="task"><span class="dot off"></span>
+        <div><b>${out}</b><small>${o.closedAt ? fmtDate(o.closedAt) + ' · ' : ''}поиск занял ${dn(c.daysOn)}</small></div><span></span></div></div>
+      <details class="more"><summary>Подробнее</summary><div class="more-body">
+        <dl class="facts">
+          <div><dt>Размещено</dt><dd>${fmtDate(o.publishedAt)}</dd></div>
+          <div><dt>Полная ставка</dt><dd>${rub(o.fullRent)}</dd></div>
+          <div><dt>Потеря на простое</dt><dd>${rub(c.idleLoss)}</dd></div>
+        </dl>
+        ${o.note ? `<div class="r-sub">${esc(o.note)}</div>` : ''}
+        ${hist(o)}
+        <div class="m-actions">
+          <button type="button" class="ghost" data-a="reopen" data-id="${o.id}" ${dis()}>Вернуть в активные</button>
+          ${delBtn(o)}
+        </div>
+      </div></details>
+    </article>`;
+  }
+
+  const delBtn = o => `<span class="confirm" data-del="${o.id}"><button type="button" class="ghost danger" data-a="del" data-id="${o.id}" ${dis()}>Удалить</button></span>`;
+  function hist(o) {
+    if (!o.history.length) return '';
+    return `<ul class="hist">${o.history.map(x => `<li><span class="num">${fmtDate(x.d)}</span>: ${esc(x.text)}${x.by ? ` (${esc(x.by)})` : ''}</li>`).join('')}</ul>`;
+  }
+
+  // --- сводка для Telegram ---
+  function digest() {
+    const lines = [];
+    items.filter(o => o.status === 'active').map(o => ({ o, c: calc(o) })).filter(r => needsAction(r.o, r.c))
+      .sort((a, b) => urgency(a.o, a.c) - urgency(b.o, b.c))
+      .forEach(({ o, c }) => {
+        const t = [];
+        if (c.refIn <= 0) t.push(`обновить объявление (${whenText(c.refIn)})`);
+        if (!c.atMax && c.redIn <= 0) t.push(`снизить ставку до ${rub(c.nextRent)} (${whenText(c.redIn)})`);
+        lines.push(`• ${o.title}${o.resp ? ' [' + o.resp + ']' : ''}: ${t.join('; ')}`);
+      });
+    const head = `Аренда: задачи на ${parse(todayISO()).toLocaleDateString('ru-RU')}`;
+    return lines.length ? `${head}\n${lines.join('\n')}` : `${head}\nПросроченных задач нет.`;
+  }
+  $('#copyBtn').addEventListener('click', () => {
+    const text = digest();
+    const fallback = () => {
+      const t = $('#toast'); clearTimeout(toastT); t.hidden = false;
+      t.innerHTML = '<div>Скопируйте текст вручную:</div>';
+      const ta = document.createElement('textarea'); ta.className = 'copybox'; ta.readOnly = true; ta.value = text;
+      t.appendChild(ta); ta.focus(); ta.select();
+    };
+    try { navigator.clipboard.writeText(text).then(() => toast('Сводка скопирована. Вставьте её в чат Telegram.'), fallback); } catch (e) { fallback(); }
+  });
+
+  // --- обработчики списка ---
+  $('#list').addEventListener('click', async e => {
+    const b = e.target.closest('button[data-a]'); if (!b || b.disabled) return;
+    const { a, id } = b.dataset;
+    if (a === 'edit') return openForm(items.find(x => x.id === id));
+    if (a === 'finish') {
+      document.querySelector(`[data-box="${id}"]`).innerHTML = `Итог: <button type="button" class="primary" data-a="rented" data-id="${id}">Сдано</button><button type="button" data-a="withdrawn" data-id="${id}">Снято с публикации</button><button type="button" class="ghost" data-a="cancel" data-id="${id}">Отмена</button>`;
+      return;
+    }
+    if (a === 'del') {
+      document.querySelector(`[data-del="${id}"]`).innerHTML = `Удалить объект? Его можно будет восстановить только из истории репозитория. <button type="button" class="danger" data-a="delyes" data-id="${id}">Да, удалить</button><button type="button" class="ghost" data-a="cancel" data-id="${id}">Нет</button>`;
+      return;
+    }
+    if (a === 'cancel') return render();
+    if (a === 'delyes') {
+      const o = items.find(x => x.id === id);
+      try { await mutate(list => list.filter(x => x.id !== id), `Удалён объект: ${o ? o.title : id}`); toast('Объект удалён.'); } catch (x) {}
+      return;
+    }
+    b.disabled = true;
+    try { await act(id, a); } catch (err) { b.disabled = false; }
+  });
+  document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
+    filter = b.dataset.f; try { localStorage.setItem(TAB_KEY, filter); } catch (e) {} render();
+  }));
+  $('#search').addEventListener('input', e => { q = e.target.value.trim().toLowerCase(); render(); });
+
+  // --- форма объекта ---
+  const dlg = $('#dlg'); let editingId = null;
+  const F = id => $('#f_' + id);
+  function openForm(o) {
+    editingId = o ? o.id : null;
+    $('#fTitle').textContent = o ? 'Изменить объект' : 'Новый объект';
+    $('#fErr').hidden = true;
+    F('title').value = o?.title || ''; F('link').value = o?.link || '';
+    F('pub').value = o?.publishedAt || todayISO(); F('rent').value = o?.fullRent ?? '';
+    F('resp').value = o?.resp || (o ? '' : who()); F('disc').value = o?.discountPct ?? 0;
+    F('refEvery').value = o?.refreshEvery ?? DEF.refEvery; F('refLast').value = o?.lastRefreshAt || '';
+    F('stepDays').value = o?.stepDays ?? DEF.stepDays; F('stepPct').value = o?.stepPct ?? DEF.stepPct;
+    F('maxPct').value = o?.maxPct ?? DEF.maxPct; F('term').value = o?.term ?? DEF.term; F('note').value = o?.note || '';
+    $('#setBox').open = false;
+    preview();
+    dlg.showModal();
+    F('title').focus();
+  }
+  function preview() {
+    const rent = +F('rent').value, step = +F('stepPct').value, max = +F('maxPct').value, term = +F('term').value, days = +F('stepDays').value, ref = +F('refEvery').value;
+    $('#setSum').textContent = `· обновлять раз в ${dn(ref || DEF.refEvery)}, снижать на ${pct(step || DEF.stepPct)} раз в ${dn(days || DEF.stepDays)}`;
+    if (!rent || !step || !term || !days) { $('#fPreview').textContent = 'Укажите ставку, и здесь появится график снижения.'; return; }
+    const steps = []; let d = +F('disc').value || 0, k = 0;
+    while (d < max && k < 6) { d = Math.min(max, d + step); k++; steps.push(`<li>через ${dn(days * k)}: <b class="num">${rub(rent * (1 - d / 100))}</b> (скидка ${pct(d)})</li>`); }
+    $('#fPreview').innerHTML = steps.length ? 'График снижения ставки:<ol>' + steps.join('') + '</ol>' : 'Скидка уже на максимуме, снижений не будет.';
+  }
+  $('#form').addEventListener('input', preview);
+  $('#addBtn').addEventListener('click', () => openForm(null));
+  $('#fCancel').addEventListener('click', () => dlg.close());
+  $('#form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const err = m => { $('#fErr').textContent = m; $('#fErr').hidden = false; };
+    const title = F('title').value.trim(), rent = +F('rent').value, pub = F('pub').value;
+    if (!title) return err('Укажите адрес или название объекта.');
+    if (!okDate(pub)) return err('Укажите дату размещения объявления.');
+    if (!(rent > 0)) return err('Укажите полную ставку больше нуля.');
+    const fields = {
+      title, link: F('link').value.trim(), publishedAt: pub, fullRent: rent, resp: F('resp').value.trim(),
+      refreshEvery: F('refEvery').value, lastRefreshAt: F('refLast').value || null,
+      stepDays: F('stepDays').value, stepPct: F('stepPct').value, maxPct: F('maxPct').value,
+      discountPct: F('disc').value, term: F('term').value, note: F('note').value.trim(),
+    };
+    const id = editingId;
+    $('#fSave').disabled = true;
+    try {
+      await mutate(list => {
+        if (id) {
+          const i = list.findIndex(x => x.id === id);
+          if (i < 0) return null;
+          const prev = list[i];
+          const clean = normalize({ ...prev, ...fields });
+          if (prev.fullRent !== clean.fullRent || prev.discountPct !== clean.discountPct)
+            clean.history = [entry(`Ставка изменена вручную: ${rub(clean.fullRent * (1 - clean.discountPct / 100))}`), ...clean.history].slice(0, 40);
+          list[i] = clean;
+        } else {
+          const nid = 'o' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+          const clean = normalize({ ...fields, id: nid, status: 'active', createdAt: todayISO(), history: [] });
+          clean.history = [entry(`Объявление размещено, ставка ${rub(clean.fullRent * (1 - clean.discountPct / 100))}`)];
+          list.push(clean);
+        }
+        return list;
+      }, `${id ? 'Изменён объект' : 'Новый объект'}: ${title}`);
+      dlg.close(); toast(id ? 'Изменения сохранены.' : 'Объект добавлен.');
+    } catch (x) { err(x.message || 'Не удалось сохранить, попробуйте ещё раз.'); }
+    finally { $('#fSave').disabled = false; }
+  });
+
+  // --- экраны: вход или трекер ---
+  function showApp() {
+    const inApp = !!cfg;
+    $('#app').hidden = !inApp; $('#auth').hidden = inApp;
+    $('#usersBtn').hidden = !(cfg && cfg.admin);
+    $('#logoutBtn').hidden = !inApp;
+    $('#logoutBtn').textContent = cfg ? `Выйти (${cfg.login})` : 'Выйти';
+    setSync(); render();
+    if (!inApp) { fetchUsers().then(u => { $('#setupHint').hidden = !u.missing; }); setTimeout(() => $('#l_login').focus(), 0); }
+  }
+  const LOGIN_HELP = 'Логин: от 2 до 40 символов, строчная латиница, цифры, точка, дефис или подчёркивание.';
+
+  $('#loginForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const err = m => { $('#lErr').textContent = m; $('#lErr').hidden = false; };
+    const login = $('#l_login').value.trim().toLowerCase(), pw = $('#l_pass').value;
+    if (!login || !pw) return err('Введите логин и пароль.');
+    $('#lBtn').disabled = true; $('#lErr').hidden = true; $('#lBtn').textContent = 'Проверяю…';
+    try {
+      const u = await fetchUsers();
+      if (u.error) return err(u.error === 'net' ? 'Не удалось загрузить список сотрудников. Проверьте интернет.' : 'Файл users.json повреждён. Сообщите руководителю.');
+      const entry = u.users.find(x => x.login === login);
+      let p = null;
+      if (entry) { try { p = await unseal(entry, pw); } catch (x) { p = null; } }
+      if (!p || !validCfg(p)) return err('Неверный логин или пароль.');
+      startSession({ owner: p.owner, repo: p.repo, path: p.path, branch: p.branch, token: p.token, name: str(p.name, 60), admin: p.admin === true, login }, $('#l_remember').checked);
+      $('#l_pass').value = '';
+      showApp(); refresh();
+    } finally { $('#lBtn').disabled = false; $('#lBtn').textContent = 'Войти'; }
+  });
+  $('#logoutBtn').addEventListener('click', () => { endSession(); showApp(); });
+
+  // --- файл users.json: руководитель скачивает его и загружает в репозиторий со страницей ---
+  function download(name, text) {
+    const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    const a = document.createElement('a'); a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+  const usersFile = list => JSON.stringify({ version: 1, users: list }, null, 1) + '\n';
+
+  // --- первичная настройка ---
+  const setupDlg = $('#setupDlg'); const S = id => $('#s_' + id);
+  $('#setupBtn').addEventListener('click', () => { $('#sErr').hidden = true; setupDlg.showModal(); S('owner').focus(); });
+  $('#sCancel').addEventListener('click', () => setupDlg.close());
+  $('#setupForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const err = m => { $('#sErr').textContent = m; $('#sErr').hidden = false; };
+    const c = {
+      owner: S('owner').value.trim(), repo: S('repo').value.trim(),
+      path: S('path').value.trim().replace(/^\/+/, '') || 'listings.json', branch: S('branch').value.trim() || 'main',
+      token: S('token').value.trim(), name: S('name').value.trim().slice(0, 60), admin: true,
+    };
+    const login = S('login').value.trim().toLowerCase();
+    if (!NAME_RE.test(c.owner) || !NAME_RE.test(c.repo)) return err('Укажите владельца и название репозитория латиницей, как в адресе на github.com.');
+    if (!PATH_RE.test(c.path) || c.path.includes('..')) return err('Имя файла может содержать только латиницу, цифры, точку, дефис и косую черту.');
+    if (!NAME_RE.test(c.branch)) return err('Проверьте название ветки.');
+    if (!c.token) return err('Введите токен доступа GitHub.');
+    if (!LOGIN_RE.test(login)) return err(LOGIN_HELP);
+    if (!c.name) return err('Укажите ваше имя.');
+    $('#sSave').disabled = true; $('#sErr').hidden = true;
+    try {
+      const res = await load(c); // проверяем токен и репозиторий до создания учётной записи
+      const pw = genPassword();
+      const entry = await seal(login, pw, c);
+      setupDlg.close(); S('token').value = '';
+      startSession({ ...c, login }, false);
+      apply(res); lastSync = new Date();
+      showApp();
+      openUsers([entry], { login, pw, first: true });
+    } catch (x) { err(x.message || 'Не удалось подключиться.'); }
+    finally { $('#sSave').disabled = false; }
+  });
+
+  // --- сотрудники (только руководитель) ---
+  const usersDlg = $('#usersDlg'); const U = id => $('#u_' + id);
+  let draft = null, dirty = false;
+  function renderUsers() {
+    $('#usersList').innerHTML = draft.length
+      ? draft.map(u => `<li><span>${esc(u.login)}${u.login === cfg.login ? ' (вы)' : ''}</span>${u.login === cfg.login ? '' : `<button type="button" class="ghost danger" data-del-user="${esc(u.login)}">Удалить</button>`}</li>`).join('')
+      : '<li>Пока никого нет.</li>';
+    $('#uPending').hidden = !dirty;
+  }
+  function showPw(login, pw, first) {
+    const box = $('#pwBox');
+    box.innerHTML = `<div>${first ? 'Ваша учётная запись руководителя создана.' : 'Пароль создан.'} Логин: <b>${esc(login)}</b>. Пароль показывается один раз, сохраните или передайте его сотруднику:</div><code>${esc(pw)}</code><div><button type="button" id="pwCopy">Скопировать пароль</button></div>`;
+    box.hidden = false;
+    $('#pwCopy').addEventListener('click', () => {
+      try { navigator.clipboard.writeText(pw).then(() => toast('Пароль скопирован.'), () => toast('Выделите пароль и скопируйте вручную.')); } catch (e) { toast('Выделите пароль и скопируйте вручную.'); }
+    });
+  }
+  async function openUsers(initial, created) {
+    $('#uErr').hidden = true; $('#pwBox').hidden = true; $('#pwBox').innerHTML = '';
+    if (initial) { draft = initial; dirty = true; }
+    else if (!draft || !dirty) {
+      const u = await fetchUsers();
+      if (u.error) { note('Не удалось загрузить users.json.', true); return; }
+      draft = u.users; dirty = false;
+    }
+    renderUsers();
+    if (created) showPw(created.login, created.pw, created.first);
+    usersDlg.showModal();
+  }
+  $('#usersBtn').addEventListener('click', () => openUsers());
+  $('#uClose').addEventListener('click', () => { $('#pwBox').innerHTML = ''; usersDlg.close(); });
+  usersDlg.addEventListener('close', () => { $('#pwBox').innerHTML = ''; $('#pwBox').hidden = true; });
+  $('#usersList').addEventListener('click', e => {
+    const b = e.target.closest('[data-del-user]'); if (!b) return;
+    draft = draft.filter(u => u.login !== b.dataset.delUser); dirty = true; renderUsers();
+  });
+  $('#userForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const err = m => { $('#uErr').textContent = m; $('#uErr').hidden = false; };
+    const login = U('login').value.trim().toLowerCase(), name = U('name').value.trim().slice(0, 60);
+    if (!LOGIN_RE.test(login)) return err(LOGIN_HELP);
+    if (!name) return err('Укажите имя сотрудника: оно попадёт в историю изменений.');
+    $('#uAdd').disabled = true; $('#uErr').hidden = true;
+    try {
+      const pw = genPassword();
+      const entry = await seal(login, pw, { owner: cfg.owner, repo: cfg.repo, path: cfg.path, branch: cfg.branch, token: cfg.token, name, admin: U('admin').checked });
+      draft = [...draft.filter(u => u.login !== login), entry]; dirty = true;
+      U('login').value = ''; U('name').value = ''; U('admin').checked = false;
+      renderUsers(); showPw(login, pw);
+    } finally { $('#uAdd').disabled = false; }
+  });
+  $('#uDownload').addEventListener('click', () => {
+    download('users.json', usersFile(draft));
+    toast('Файл users.json скачан. Замените им файл в репозитории со страницей.');
+  });
+
+  // --- запуск и фоновое обновление ---
+  showApp();
+  if (cfg) refresh();
+  setInterval(() => { if (document.visibilityState === 'visible') refresh(true); }, POLL_MS);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(true); });
+})();
+</script>
+</body>
+</html>
