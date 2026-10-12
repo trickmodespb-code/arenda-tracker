@@ -108,7 +108,14 @@ label.check input{width:auto}
 fieldset{border:0;margin:0;padding:0}
 legend{padding:0;margin-bottom:8px}
 .users{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
-.users li{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--sunk);border-radius:8px;padding:6px 6px 6px 12px;font-family:var(--f-num);font-size:14px}
+.users{max-height:45vh;overflow-y:auto}
+.users li{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;background:var(--sunk);border-radius:8px;padding:8px 6px 8px 12px;font-size:14px}
+.u-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.u-info{flex:1 1 180px;min-width:0;display:flex;flex-direction:column}
+.u-info b{font-weight:600;overflow-wrap:anywhere}
+.u-info small{color:var(--muted);font-size:12px}
+.u-act{display:flex;gap:2px;margin-left:auto}
+.muted{color:var(--muted);font-weight:400}
 .pwbox{background:var(--ok-soft);border-radius:8px;padding:12px;font-size:14px;display:flex;flex-direction:column;gap:6px}
 .pwbox code{font:600 18px/1.3 var(--f-num);letter-spacing:.04em;user-select:all;overflow-wrap:anywhere}
 @media (max-width:680px){.row{grid-template-columns:1fr}}
@@ -147,6 +154,8 @@ legend{padding:0;margin-bottom:8px}
     <div class="empty">Загружаю объекты…</div>
   </section>
 </div>
+
+<datalist id="staffList"></datalist>
 
 <!-- Вход сотрудника -->
 <section class="auth" id="auth" hidden>
@@ -187,7 +196,7 @@ legend{padding:0;margin-bottom:8px}
 <!-- Сотрудники (только для руководителя) -->
 <dialog id="usersDlg">
   <form class="f" id="userForm" novalidate>
-    <h2>Сотрудники</h2>
+    <div class="u-head"><h2>Сотрудники</h2><span class="help" id="usersCount"></span></div>
     <ul class="users" id="usersList"></ul>
     <fieldset class="grid">
       <legend class="help">Добавить сотрудника или выдать новый пароль</legend>
@@ -213,7 +222,7 @@ legend{padding:0;margin-bottom:8px}
       <label class="wide">Адрес или название<input id="f_title" required placeholder="ул. Ленина 12, помещение 3"></label>
       <label>Дата размещения<input id="f_pub" type="date" required></label>
       <label>Полная ставка, ₽/мес<input id="f_rent" type="number" min="0" step="1000" required></label>
-      <label>Ответственный<input id="f_resp" placeholder="Имя сотрудника"></label>
+      <label>Ответственный<input id="f_resp" list="staffList" placeholder="Имя сотрудника" autocomplete="off"></label>
       <label>Текущая скидка, %<input id="f_disc" type="number" min="0" max="100" step="0.5"></label>
       <label class="wide">Ссылка на объявление<input id="f_link" type="url" placeholder="https://…"></label>
     </div>
@@ -354,8 +363,33 @@ legend{padding:0;margin-bottom:8px}
     try { r = await pageFetch('users.json', { cache: 'no-store' }); } catch (e) { return { error: 'net' }; }
     if (r.status === 404) return { missing: true, users: [] };
     if (!r.ok) return { error: 'net' };
-    try { const j = await r.json(); return { users: Array.isArray(j.users) ? j.users.filter(u => u && LOGIN_RE.test(u.login) && u.salt && u.iv && u.ct) : [] }; }
-    catch (e) { return { error: 'format' }; }
+    try {
+      const j = await r.json();
+      return { users: Array.isArray(j.users) ? j.users.filter(u => u && LOGIN_RE.test(u.login) && u.salt && u.iv && u.ct) : [], dir: j.dir && j.dir.iv && j.dir.ct ? j.dir : null };
+    } catch (e) { return { error: 'format' }; }
+  }
+  // справочник сотрудников (имя, роль, дата): зашифрован ключом из общего токена,
+  // поэтому его читают только вошедшие в трекер, а посторонние видят лишь логины
+  async function dirKey(token) {
+    const h = await crypto.subtle.digest('SHA-256', te.encode('arenda-dir:' + token));
+    return crypto.subtle.importKey('raw', h, 'AES-GCM', false, ['encrypt', 'decrypt']);
+  }
+  async function sealDir(token, dir) {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await dirKey(token), te.encode(JSON.stringify(dir)));
+    return { iv: toB64(iv), ct: toB64(ct) };
+  }
+  async function openDir(token, enc) {
+    if (!enc) return {};
+    try {
+      const raw = JSON.parse(td.decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(enc.iv) }, await dirKey(token), fromB64(enc.ct))));
+      const out = {};
+      Object.keys(raw || {}).forEach(k => {
+        const v = raw[k];
+        if (LOGIN_RE.test(k) && v) out[k] = { name: str(v.name, 60), admin: v.admin === true, created: okDate(v.created) };
+      });
+      return out;
+    } catch (e) { return {}; } // другой токен или повреждён: показываем только логины
   }
 
   // сессия: в sessionStorage до закрытия вкладки или в localStorage при «Запомнить»
@@ -716,6 +750,14 @@ legend{padding:0;margin-bottom:8px}
     $('#logoutBtn').textContent = cfg ? `Выйти (${cfg.login})` : 'Выйти';
     setSync(); render();
     if (!inApp) { fetchUsers().then(u => { $('#setupHint').hidden = !u.missing; }); setTimeout(() => $('#l_login').focus(), 0); }
+    else loadStaffNames();
+  }
+  // имена сотрудников для подсказок в поле «Ответственный»
+  async function loadStaffNames() {
+    const u = await fetchUsers(); if (u.error || !cfg) return;
+    const dir = await openDir(cfg.token, u.dir);
+    const names = [...new Set(Object.values(dir).map(d => d.name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru'));
+    $('#staffList').innerHTML = names.map(n => `<option value="${esc(n)}"></option>`).join('');
   }
   const LOGIN_HELP = 'Логин: от 2 до 40 символов, строчная латиница, цифры, точка, дефис или подчёркивание.';
 
@@ -737,7 +779,7 @@ legend{padding:0;margin-bottom:8px}
       showApp(); refresh();
     } finally { $('#lBtn').disabled = false; $('#lBtn').textContent = 'Войти'; }
   });
-  $('#logoutBtn').addEventListener('click', () => { endSession(); showApp(); });
+  $('#logoutBtn').addEventListener('click', () => { endSession(); draft = null; draftDir = {}; dirty = false; $('#staffList').innerHTML = ''; showApp(); });
 
   // --- файл users.json: руководитель скачивает его и загружает в репозиторий со страницей ---
   function download(name, text) {
@@ -746,7 +788,10 @@ legend{padding:0;margin-bottom:8px}
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   }
-  const usersFile = list => JSON.stringify({ version: 1, users: list }, null, 1) + '\n';
+  const usersFile = async (list, dir) => {
+    const keep = {}; list.forEach(u => { if (dir[u.login]) keep[u.login] = dir[u.login]; });
+    return JSON.stringify({ version: 2, users: list, dir: await sealDir(cfg.token, keep) }, null, 1) + '\n';
+  };
 
   // --- первичная настройка ---
   const setupDlg = $('#setupDlg'); const S = id => $('#s_' + id);
@@ -776,17 +821,33 @@ legend{padding:0;margin-bottom:8px}
       startSession({ ...c, login }, false);
       apply(res); lastSync = new Date();
       showApp();
-      openUsers([entry], { login, pw, first: true });
+      openUsers([entry], { login, pw, first: true }, { [login]: { name: c.name, admin: true, created: todayISO() } });
     } catch (x) { err(x.message || 'Не удалось подключиться.'); }
     finally { $('#sSave').disabled = false; }
   });
 
   // --- сотрудники (только руководитель) ---
   const usersDlg = $('#usersDlg'); const U = id => $('#u_' + id);
-  let draft = null, dirty = false;
+  let draft = null, draftDir = {}, dirty = false;
   function renderUsers() {
-    $('#usersList').innerHTML = draft.length
-      ? draft.map(u => `<li><span>${esc(u.login)}${u.login === cfg.login ? ' (вы)' : ''}</span>${u.login === cfg.login ? '' : `<button type="button" class="ghost danger" data-del-user="${esc(u.login)}">Удалить</button>`}</li>`).join('')
+    const rows = [...draft].sort((a, b) => {
+      const A = draftDir[a.login], B = draftDir[b.login];
+      return (B?.admin ? 1 : 0) - (A?.admin ? 1 : 0) || (A?.name || a.login).localeCompare(B?.name || b.login, 'ru');
+    });
+    $('#usersCount').textContent = draft.length ? `Всего: ${draft.length}` : '';
+    $('#usersList').innerHTML = rows.length
+      ? rows.map(u => {
+          const d = draftDir[u.login]; const me = u.login === cfg.login;
+          const role = d ? (d.admin ? '<span class="pill ok">Руководитель</span>' : '<span class="pill">Сотрудник</span>') : '<span class="pill">Роль неизвестна</span>';
+          return `<li>
+            <div class="u-info"><b>${d && d.name ? esc(d.name) : '<span class="muted">Имя не указано</span>'}${me ? ' (вы)' : ''}</b>
+              <small>логин <span class="num">${esc(u.login)}</span>${d && d.created ? ' · пароль выдан ' + fmtDate(d.created) : ''}</small></div>
+            ${role}
+            <span class="u-act">
+              <button type="button" class="ghost" data-repw-user="${esc(u.login)}">Новый пароль</button>
+              ${me ? '' : `<button type="button" class="ghost danger" data-del-user="${esc(u.login)}">Удалить</button>`}
+            </span></li>`;
+        }).join('')
       : '<li>Пока никого нет.</li>';
     $('#uPending').hidden = !dirty;
   }
@@ -798,13 +859,16 @@ legend{padding:0;margin-bottom:8px}
       try { navigator.clipboard.writeText(pw).then(() => toast('Пароль скопирован.'), () => toast('Выделите пароль и скопируйте вручную.')); } catch (e) { toast('Выделите пароль и скопируйте вручную.'); }
     });
   }
-  async function openUsers(initial, created) {
+  async function openUsers(initial, created, initialDir) {
     $('#uErr').hidden = true; $('#pwBox').hidden = true; $('#pwBox').innerHTML = '';
-    if (initial) { draft = initial; dirty = true; }
+    U('login').value = ''; U('name').value = ''; U('admin').checked = false;
+    if (initial) { draft = initial; draftDir = initialDir || {}; dirty = true; }
     else if (!draft || !dirty) {
       const u = await fetchUsers();
       if (u.error) { note('Не удалось загрузить users.json.', true); return; }
-      draft = u.users; dirty = false;
+      draft = u.users; draftDir = await openDir(cfg.token, u.dir); dirty = false;
+      // свою запись знаем и без справочника
+      if (!draftDir[cfg.login] && draft.some(x => x.login === cfg.login)) draftDir[cfg.login] = { name: cfg.name, admin: cfg.admin, created: null };
     }
     renderUsers();
     if (created) showPw(created.login, created.pw, created.first);
@@ -814,8 +878,17 @@ legend{padding:0;margin-bottom:8px}
   $('#uClose').addEventListener('click', () => { $('#pwBox').innerHTML = ''; usersDlg.close(); });
   usersDlg.addEventListener('close', () => { $('#pwBox').innerHTML = ''; $('#pwBox').hidden = true; });
   $('#usersList').addEventListener('click', e => {
+    const re = e.target.closest('[data-repw-user]');
+    if (re) { // подставить данные в форму: «Создать пароль» выдаст новый и заменит старый
+      const l = re.dataset.repwUser, d = draftDir[l];
+      U('login').value = l; U('name').value = d?.name || ''; U('admin').checked = !!d?.admin;
+      $('#pwBox').hidden = true; (d?.name ? $('#uAdd') : U('name')).focus();
+      toast(`Нажмите «Создать пароль», чтобы выдать ${l} новый пароль. Старый перестанет работать после загрузки users.json.`);
+      return;
+    }
     const b = e.target.closest('[data-del-user]'); if (!b) return;
-    draft = draft.filter(u => u.login !== b.dataset.delUser); dirty = true; renderUsers();
+    const l = b.dataset.delUser;
+    draft = draft.filter(u => u.login !== l); delete draftDir[l]; dirty = true; renderUsers();
   });
   $('#userForm').addEventListener('submit', async e => {
     e.preventDefault();
@@ -828,12 +901,13 @@ legend{padding:0;margin-bottom:8px}
       const pw = genPassword();
       const entry = await seal(login, pw, { owner: cfg.owner, repo: cfg.repo, path: cfg.path, branch: cfg.branch, token: cfg.token, name, admin: U('admin').checked });
       draft = [...draft.filter(u => u.login !== login), entry]; dirty = true;
+      draftDir[login] = { name, admin: U('admin').checked, created: todayISO() };
       U('login').value = ''; U('name').value = ''; U('admin').checked = false;
       renderUsers(); showPw(login, pw);
     } finally { $('#uAdd').disabled = false; }
   });
-  $('#uDownload').addEventListener('click', () => {
-    download('users.json', usersFile(draft));
+  $('#uDownload').addEventListener('click', async () => {
+    download('users.json', await usersFile(draft, draftDir));
     toast('Файл users.json скачан. Замените им файл в репозитории со страницей.');
   });
 
