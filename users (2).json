@@ -1,0 +1,19 @@
+{
+ "version": 1,
+ "users": [
+  {
+   "login": "leonid",
+   "iter": 600000,
+   "salt": "5ucsEW7oZqqsAyQgIXSPOA==",
+   "iv": "kOOnR94RvRzmEA6F",
+   "ct": "PLuQSf/tpmIc45xGQ3cDBysZd3ZBiP2zU+JIv5B38oOgY56FrjdiejjuUYenEWKWu/6OJOw5BJLIbsDpTl7CpOFyMvnJNJ5P94HZ0m6JJbX1cCIuHPfS3uC1NFOed2UCZUNOcx/kOfsbnSN5auGBO107NqmH3AWf9rgXLx8vFzPqMtd+NMc8QsA4yiAm/yVnb/tsV27s/5a/EI2Iq3vOEz7bja4Zla0P/w1b9M5Dp0ifMSaSRF67I6HH77zOLfkCbCDrGZy3qYY0tv4W3EaNRBptbqvnOMYT17dHhCXtCo5c2T7XEmOpyQNqzIMMcA=="
+  },
+  {
+   "login": "arenda",
+   "iter": 600000,
+   "salt": "VkoO4FD0x+RvUlbyf6J8QA==",
+   "iv": "Xo5tAiEsErTQ/nBU",
+   "ct": "6KJoPKTQprRLZcraCJLVD64l0ds4pD1ko8J8j8uePshE1YZ+bIKHA+ZgBBW7z3AWEGFDvcpS7ixBRLnwPrGSWwoEjHfOILLcgvXP6shmwvDReLY16y0Kjy1rDyHKuvb3IXVYcRk9U/O0XdwHjTdmsLqYYbrQt6PFLSVoG2C9LPM+uF2JoGBz0jPD3KWXpBxOj0UbrGRX+zNgDTAMEWb4Ls/4+KUCfs07eZDGDrgIrEwIVSyonqZxt1vUPxwmCyqV3ScOcMOtyNPW1qsPl+l17kZGuI3T5Qk3ADjXO2aNPgF6mdzL6OLxptZqDIxSOg=="
+  }
+ ]
+}
