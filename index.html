@@ -123,6 +123,22 @@ legend{padding:0;margin-bottom:8px}
 .muted{color:var(--muted);font-weight:400}
 .pwbox{background:var(--ok-soft);border-radius:8px;padding:12px;font-size:14px;display:flex;flex-direction:column;gap:6px}
 .pwbox code{font:600 18px/1.3 var(--f-num);letter-spacing:.04em;user-select:all;overflow-wrap:anywhere}
+/* вкладка «Сверка актов» */
+#recon{display:flex;flex-direction:column;gap:16px}
+#recon fieldset label.check{margin-bottom:4px}
+#recon input[type=file]{background:var(--surface)}
+.rc-out{padding:20px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.rc-out h2{margin:0;font-size:20px} .rc-out h3{margin:12px 0 0;font-size:16px} .rc-out p{margin:0}
+.rc-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:10px}
+.rc-strong{font-weight:600}
+.rc-scroll{overflow-x:auto;max-width:100%}
+.rc-table{border-collapse:collapse;width:100%;font-size:13px}
+.rc-table th{text-align:left;font-weight:600;color:var(--muted);border-bottom:1px solid var(--line);padding:6px 8px;white-space:nowrap}
+.rc-table td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top;min-width:70px}
+.rc-table td.num{font-family:var(--f-num);text-align:right;white-space:nowrap}
+.rc-table tr.np td:first-child{box-shadow:inset 3px 0 var(--late)} .rc-table tr.un td:first-child{box-shadow:inset 3px 0 #d9822b}
+.rc-table tr.ov td:first-child{box-shadow:inset 3px 0 var(--due)} .rc-table tr.dp td:first-child{box-shadow:inset 3px 0 #8064a2}
+.rc-table tr.sh td:first-child{box-shadow:inset 3px 0 #4a7fb5} .rc-table tr.ok td:first-child{box-shadow:inset 3px 0 var(--ok)}
 @media (max-width:680px){.row{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -149,6 +165,7 @@ legend{padding:0;margin-bottom:8px}
     <button type="button" data-f="todo" aria-pressed="true">Сегодня <span class="count" id="cTodo">0</span></button>
     <button type="button" data-f="active" aria-pressed="false">Активные <span class="count" id="cActive">0</span></button>
     <button type="button" data-f="archive" aria-pressed="false">Архив <span class="count" id="cArchive">0</span></button>
+    <button type="button" data-f="recon" aria-pressed="false">Сверка актов</button>
   </nav>
   <div class="toolbar">
     <span id="tabHint">Задачи, которые нужно сделать сегодня или уже просрочены.</span>
@@ -158,9 +175,11 @@ legend{padding:0;margin-bottom:8px}
   <section class="list" id="list" aria-live="polite">
     <div class="empty">Загружаю объекты…</div>
   </section>
+  <section id="recon" hidden></section>
 </div>
 
 <datalist id="staffList"></datalist>
+<script src="sverka.js"></script>
 
 <!-- Вход сотрудника -->
 <section class="auth" id="auth" hidden>
@@ -573,9 +592,10 @@ legend{padding:0;margin-bottom:8px}
     todo: 'Задачи, которые нужно сделать сегодня или уже просрочены.',
     active: 'Все объявления в работе, сначала самые срочные.',
     archive: 'Завершённые объявления: сданные и снятые с публикации.',
+    recon: '',
   };
   let filter = 'todo', q = '';
-  try { const f = localStorage.getItem(TAB_KEY); if (['todo', 'active', 'archive'].includes(f)) filter = f; } catch (e) {}
+  try { const f = localStorage.getItem(TAB_KEY); if (['todo', 'active', 'archive', 'recon'].includes(f)) filter = f; } catch (e) {}
 
   function render() {
     const all = items.map(o => ({ o, c: calc(o) }));
@@ -587,6 +607,11 @@ legend{padding:0;margin-bottom:8px}
     document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.f === filter)));
     $('#tabHint').textContent = HINTS[filter];
     $('#addBtn').disabled = busy || !cfg;
+
+    // сверка актов не зависит от списка объектов: показываем её вместо списка
+    const rc = filter === 'recon';
+    $('#recon').hidden = !rc; $('#list').hidden = rc; document.querySelector('.toolbar').hidden = rc;
+    if (rc) { if (window.Sverka) window.Sverka.mount($('#recon')); else $('#recon').innerHTML = '<div class="notice bad">Не загрузился файл sverka.js. Обновите страницу.</div>'; return; }
 
     const list = $('#list');
     if (!cfg) { list.innerHTML = ''; return; }
