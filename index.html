@@ -106,6 +106,29 @@ details.set .grid{padding-top:12px}
 button.ghost.link{font-size:13px;font-family:var(--f-body);font-weight:500;color:var(--accent);padding:2px 6px;vertical-align:middle}
 .t-btns{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;align-items:center}
 .t-btns .help{width:100%;text-align:right}
+/* договоры */
+.cbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{border-radius:999px;padding:5px 12px;font-size:13px;display:inline-flex;gap:6px;align-items:center}
+.chips button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.chips button[aria-pressed="true"] .count{background:rgba(255,255,255,.25);color:inherit}
+.kc{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.kc-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px}
+.kc-head h2{margin:0;font-size:16px;font-weight:600}
+.ct{border-top:1px solid var(--line);padding-top:10px;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:8px 20px}
+.ct:first-of-type{border-top:0;padding-top:0}
+.ct-main{display:flex;flex-direction:column;gap:3px;min-width:0}
+.ct-main b{font-weight:600;overflow-wrap:anywhere}
+.ct-contacts{font-size:13px;line-height:1.45;min-width:0;overflow-wrap:anywhere}
+.ct-contacts a{color:var(--accent);text-decoration:none}
+.ct-contacts a:hover{text-decoration:underline}
+.ct-act{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.ct details{grid-column:1/-1;font-size:13px}
+.ct details summary{cursor:pointer;color:var(--muted)}
+.ct details .facts{padding-top:8px}
+.ct.archived{opacity:.7}
+.sub-tag{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--accent)}
+@media (max-width:680px){.ct{grid-template-columns:1fr}}
 .auth{max-width:400px;width:100%;margin:8vh auto 0;display:flex;flex-direction:column;gap:12px;padding-inline:16px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:14px}
 label.check{flex-direction:row;align-items:center;gap:8px;color:var(--fg);font-size:14px}
@@ -165,11 +188,19 @@ legend{padding:0;margin-bottom:8px}
     <button type="button" data-f="todo" aria-pressed="true">Сегодня <span class="count" id="cTodo">0</span></button>
     <button type="button" data-f="active" aria-pressed="false">Активные <span class="count" id="cActive">0</span></button>
     <button type="button" data-f="archive" aria-pressed="false">Архив <span class="count" id="cArchive">0</span></button>
+    <button type="button" data-f="contracts" aria-pressed="false">Договоры <span class="count" id="cContr">0</span></button>
     <button type="button" data-f="recon" aria-pressed="false">Сверка актов</button>
   </nav>
   <div class="toolbar">
     <span id="tabHint">Задачи, которые нужно сделать сегодня или уже просрочены.</span>
     <input id="search" type="search" placeholder="Поиск по адресу или сотруднику" aria-label="Поиск">
+  </div>
+  <div class="cbar" id="cBar" hidden>
+    <div class="chips" id="cChips" role="group" aria-label="Фильтр договоров"></div>
+    <div class="h-actions">
+      <button type="button" id="cExport">Скачать Excel</button>
+      <button type="button" class="primary" id="cAdd">+ Договор</button>
+    </div>
   </div>
 
   <section class="list" id="list" aria-live="polite">
@@ -179,6 +210,57 @@ legend{padding:0;margin-bottom:8px}
 </div>
 
 <datalist id="staffList"></datalist>
+<datalist id="kcList"></datalist>
+<datalist id="ipList"></datalist>
+
+<!-- Договор аренды КЦ -->
+<dialog id="cDlg">
+  <form class="f" id="cForm" novalidate>
+    <h2 id="cTitle">Новый договор</h2>
+    <div class="grid">
+      <label class="wide">КЦ<input id="k_kc" list="kcList" autocomplete="off" placeholder="OQ м. Василеостровская"></label>
+      <label>Тип договора<select id="k_kind"><option value="lease">Аренда (арендуем у арендодателя)</option><option value="sublease">Внешняя субаренда (сдаём субарендатору)</option></select></label>
+      <label>Наше ИП<input id="k_ip" list="ipList" autocomplete="off" placeholder="Кузнецова"></label>
+      <label class="wide"><span id="k_partyLbl">Арендодатель</span><input id="k_landlord" autocomplete="off" placeholder="ИП Иванов И.И. / ООО «…»"></label>
+      <label>ИНН<input id="k_inn" inputmode="numeric" autocomplete="off"></label>
+      <label>№ договора / ДС<input id="k_number" autocomplete="off"></label>
+      <label>Дата заключения<input id="k_signed" type="date"></label>
+      <label>Дата начала<input id="k_start" type="date"></label>
+      <label>Дата окончания<input id="k_end" type="date"></label>
+      <label class="check"><input id="k_auto" type="checkbox"> Автопролонгация</label>
+      <label class="check"><input id="k_indef" type="checkbox"> Бессрочный</label>
+      <label class="wide">Контактные лица и телефоны<textarea id="k_contacts" placeholder="Ольга +7 911 000-00-00 — договоры"></textarea></label>
+      <label class="wide">Почта<input id="k_email" autocomplete="off" placeholder="arenda@example.ru"></label>
+      <label class="wide">Аварийные службы, УК, ТСЖ<textarea id="k_emergency"></textarea></label>
+      <label>Акты / закрывающие<input id="k_acts" autocomplete="off" placeholder="ЭДО / на почту / не делаем"></label>
+      <label class="wide">Комментарий<textarea id="k_note"></textarea></label>
+    </div>
+    <div class="err" id="kErr" hidden></div>
+    <div class="f-actions">
+      <button type="button" class="ghost" id="kCancel">Отмена</button>
+      <button type="submit" class="primary" id="kSave">Сохранить</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Продление договора -->
+<dialog id="renewDlg">
+  <form class="f" id="renewForm" novalidate>
+    <h2>Договор продлён</h2>
+    <p class="help" id="rnTitle"></p>
+    <div class="grid">
+      <label>Новая дата окончания<input id="rn_end" type="date"></label>
+      <label>№ договора или ДС<input id="rn_number" autocomplete="off" placeholder="ДС №3 от 01.11.2026"></label>
+      <label class="check"><input id="rn_auto" type="checkbox"> Автопролонгация</label>
+      <label class="check"><input id="rn_indef" type="checkbox"> Бессрочный</label>
+    </div>
+    <div class="err" id="rnErr" hidden></div>
+    <div class="f-actions">
+      <button type="button" class="ghost" id="rnCancel">Отмена</button>
+      <button type="submit" class="primary" id="rnSave">Сохранить продление</button>
+    </div>
+  </form>
+</dialog>
 <script src="sverka.js"></script>
 
 <!-- Вход сотрудника -->
@@ -386,6 +468,52 @@ legend{padding:0;margin-bottom:8px}
     };
   }
 
+  // --- договоры аренды КЦ ---
+  const fmtFull = s => parse(s).toLocaleDateString('ru-RU');   // 01.10.2026: в договорах важен год
+  const C_WARN = 60;        // за сколько дней до окончания напоминать
+  const C_STALE = 180;      // через сколько дней просить подтвердить контакты
+  function normalizeContract(d) {
+    const id = d && d.id;
+    if (typeof id !== 'string' || !/^[A-Za-z0-9_\-]{1,64}$/.test(id)) return null;
+    const kc = str(d.kc, 120).trim(); if (!kc) return null;
+    return {
+      // kind: lease — мы арендуем у арендодателя; sublease — внешняя субаренда, мы сдаём субарендатору (поле landlord = субарендатор)
+      id, kind: d.kind === 'sublease' ? 'sublease' : 'lease',
+      kc, ip: str(d.ip, 60), landlord: str(d.landlord, 200), inn: str(d.inn, 20), number: str(d.number, 200),
+      signed: okDate(d.signed), start: okDate(d.start), end: okDate(d.end), endText: str(d.endText, 200),
+      autoRenew: d.autoRenew === true, indefinite: d.indefinite === true,
+      contacts: str(d.contacts, 2000), email: str(d.email, 500), emergency: str(d.emergency, 1000),
+      acts: str(d.acts, 300), note: str(d.note, 1000),
+      checkedAt: okDate(d.checkedAt), snoozeUntil: okDate(d.snoozeUntil), review: d.review === true,
+      status: d.status === 'archived' ? 'archived' : 'active',
+      history: Array.isArray(d.history) ? d.history.filter(h => h && okDate(h.d)).slice(0, 40)
+        .map(h => ({ d: h.d, text: str(h.text, 300), by: str(h.by, 60) })) : [],
+    };
+  }
+  // состояние договора: что показать и нужно ли действие сегодня
+  function cCalc(x) {
+    const t = todayISO();
+    const stale = !x.checkedAt || diff(x.checkedAt, t) > C_STALE;
+    const snoozed = !!(x.snoozeUntil && x.snoozeUntil > t);
+    const base = { stale, snoozed, days: null, task: false, check: false };
+    if (x.status === 'archived') return { ...base, state: 'archived', label: 'В архиве', cls: '' };
+    if (x.indefinite) return { ...base, state: 'indef', label: 'Бессрочный', cls: 'ok', check: x.review };
+    if (!x.end) return { ...base, state: 'nodate', label: 'Нет даты окончания', cls: 'due', check: true };
+    const days = diff(t, x.end);
+    if (days < 0 && x.autoRenew) return { ...base, days, state: 'auto', label: `Автопролонгация (с ${fmtFull(x.end)})`, cls: 'acc', check: x.review };
+    if (days < -C_WARN) return { ...base, days, state: 'old', label: `Истёк ${fmtFull(x.end)}`, cls: 'late', check: true };
+    if (days < 0) return { ...base, days, state: 'expired', label: `Истёк ${dn(-days)} назад`, cls: 'late', task: !snoozed };
+    if (days <= C_WARN) return { ...base, days, state: 'soon', label: `Осталось ${dn(days)}`, cls: days <= 14 ? 'late' : days <= 30 ? 'due' : 'ok', task: !snoozed };
+    return { ...base, days, state: 'ok', label: `до ${fmtFull(x.end)}`, cls: 'ok', check: x.review };
+  }
+  // телефоны и почта в тексте контактов — кликабельные
+  function linkify(text) {
+    return esc(text)
+      .replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, m => `<a href="mailto:${m}">${m}</a>`)
+      .replace(/(\+7|8)[\s(-]*\d{3}[\s)-]*\d{3}[\s-]*\d{2}[\s-]*\d{2}/g, m => `<a href="tel:+7${m.replace(/\D/g, '').slice(-10)}">${m}</a>`)
+      .replace(/\n/g, '<br>');
+  }
+
   // --- вход по логину и паролю ---
   // users.json лежит рядом со страницей и публичен. В нём для каждого логина зашифрован (AES-GCM,
   // ключ из пароля через PBKDF2) общий токен GitHub и настройки. Без верного пароля токен не получить.
@@ -467,7 +595,7 @@ legend{padding:0;margin-bottom:8px}
   }
   function endSession() {
     for (const st of [sessionStorage, localStorage]) { try { st.removeItem(SESSION_KEY); } catch (e) {} }
-    cfg = null; items = []; bad = []; sha = null;
+    cfg = null; items = []; bad = []; sha = null; contracts = []; cBad = []; cSha = null;
   }
 
   // --- работа с GitHub (Contents API) ---
@@ -486,14 +614,22 @@ legend{padding:0;margin-bottom:8px}
     if (r.status === 401) throw ghErr('auth', 'GitHub не принял токен доступа: он отозван или истёк. Сообщите руководителю.');
     return r;
   }
-  const filePath = c => `/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}/contents/${c.path.split('/').map(encodeURIComponent).join('/')}`;
+  const repoContents = c => `/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}/contents/`;
+  const encPath = p => p.split('/').map(encodeURIComponent).join('/');
+  const filePath = c => repoContents(c) + encPath(c.path);
+  // договоры лежат рядом с объявлениями: <папка файла объявлений>/contracts.json
+  const contractsPath = c => repoContents(c) + encPath(c.path.replace(/[^/]*$/, '') + 'contracts.json');
 
   // bad: записи, которые не прошли проверку; их не показываем, но и не теряем при сохранении
   let items = [], bad = [], sha = null, skipped = 0, busy = false, lastSync = null;
+  let contracts = [], cBad = [], cSha = null, cSkipped = 0;
   const apply = res => { items = res.list; bad = res.bad; sha = res.sha; skipped = res.skipped; };
+  const applyC = res => { contracts = res.list; cBad = res.bad; cSha = res.sha; cSkipped = res.skipped; };
 
-  async function load(c = cfg) {
-    const r = await gh(c, filePath(c) + '?ref=' + encodeURIComponent(c.branch));
+  const load = (c = cfg) => loadFile(c, filePath(c), 'listings', normalize);
+  const loadC = (c = cfg) => loadFile(c, contractsPath(c), 'contracts', normalizeContract);
+  async function loadFile(c, path, key, norm) {
+    const r = await gh(c, path + '?ref=' + encodeURIComponent(c.branch));
     if (r.status === 404) {
       const repo = await gh(c, `/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}`);
       if (!repo.ok) throw ghErr('repo', 'Репозиторий не найден, или у токена нет к нему доступа. Проверьте владельца, название и права токена.');
@@ -505,34 +641,47 @@ legend{padding:0;margin-bottom:8px}
     if (j.encoding !== 'base64' || typeof j.content !== 'string') throw ghErr('big', 'Файл данных больше 1 МБ. Перенесите старые записи из архива в отдельный файл.');
     let data;
     try { data = JSON.parse(b64d(j.content)); } catch (e) { throw ghErr('format', 'Файл данных повреждён: это не JSON. Откатите последнее изменение в истории репозитория.'); }
-    const rawList = Array.isArray(data) ? data : Array.isArray(data && data.listings) ? data.listings : [];
+    const rawList = Array.isArray(data) ? data : Array.isArray(data && data[key]) ? data[key] : [];
     const list = [], bad = [];
-    rawList.forEach(r => { const o = normalize(r); if (o) list.push(o); else bad.push(r); });
+    rawList.forEach(r => { const o = norm(r); if (o) list.push(o); else bad.push(r); });
     return { list, sha: j.sha, skipped: bad.length, bad };
   }
 
   async function refresh(quiet) {
     if (!cfg || busy) return;
     try {
-      apply(await load()); lastSync = new Date();
+      const [a, b] = await Promise.all([load(), loadC()]);
+      apply(a); applyC(b); lastSync = new Date();
       hideNote(); setSync('ok');
     } catch (e) { setSync('bad'); if (!quiet || e.code !== 'net') note(e.message, true); }
     render();
   }
 
+  // два файла в репозитории данных: объявления и договоры
+  const STORES = {
+    listings: { key: 'listings', path: () => filePath(cfg), reload: async () => apply(await load()),
+      get: () => ({ list: items, bad, sha }), set: (list, s) => { items = list; sha = s; } },
+    contracts: { key: 'contracts', path: () => contractsPath(cfg), reload: async () => applyC(await loadC()),
+      get: () => ({ list: contracts, bad: cBad, sha: cSha }), set: (list, s) => { contracts = list; cSha = s; } },
+  };
+  const mutate = (fn, message) => mutateStore('listings', fn, message);
+  const mutateC = (fn, message) => mutateStore('contracts', fn, message);
+
   // изменение = функция над свежим списком; при конфликте перечитываем файл и применяем её заново
-  async function mutate(fn, message) {
+  async function mutateStore(kind, fn, message) {
     if (!cfg) throw ghErr('cfg', 'Войдите заново.');
+    const st = STORES[kind];
     busy = true; setSync('busy'); render();
     try {
       for (let attempt = 0; attempt < 4; attempt++) {
-        if (attempt > 0) apply(await load());
-        const next = fn(items.map(o => structuredClone(o)));
+        if (attempt > 0) await st.reload();
+        const cur = st.get();
+        const next = fn(cur.list.map(o => structuredClone(o)));
         if (!next) return;
-        const body = { message: `${message}${cfg.name ? ' — ' + cfg.name : ''}`, content: b64e(JSON.stringify({ version: 1, listings: [...next, ...bad] }, null, 1) + '\n'), branch: cfg.branch };
-        if (sha) body.sha = sha;
-        const r = await gh(cfg, filePath(cfg), { method: 'PUT', body });
-        if (r.ok) { const j = await r.json(); sha = j.content && j.content.sha; items = next; lastSync = new Date(); hideNote(); return; }
+        const body = { message: `${message}${cfg.name ? ' — ' + cfg.name : ''}`, content: b64e(JSON.stringify({ version: 1, [st.key]: [...next, ...cur.bad] }, null, 1) + '\n'), branch: cfg.branch };
+        if (cur.sha) body.sha = cur.sha;
+        const r = await gh(cfg, st.path(), { method: 'PUT', body });
+        if (r.ok) { const j = await r.json(); st.set(next, j.content && j.content.sha); lastSync = new Date(); hideNote(); return; }
         if (r.status === 409 || r.status === 422) continue; // файл успели изменить: перечитать и повторить
         if (r.status === 403 || r.status === 404) throw ghErr('perm', 'Нет права записи. Токену нужно разрешение Contents: Read and write для этого репозитория.');
         throw ghErr('net', `GitHub ответил ошибкой ${r.status}. Повторите позже.`);
@@ -592,41 +741,143 @@ legend{padding:0;margin-bottom:8px}
     todo: 'Задачи, которые нужно сделать сегодня или уже просрочены.',
     active: 'Все объявления в работе, сначала самые срочные.',
     archive: 'Завершённые объявления: сданные и снятые с публикации.',
+    contracts: 'Договоры аренды КЦ: сроки, арендодатели и контакты. Напоминания о продлении приходят во вкладку «Сегодня» за 60 дней.',
     recon: '',
   };
-  let filter = 'todo', q = '';
-  try { const f = localStorage.getItem(TAB_KEY); if (['todo', 'active', 'archive', 'recon'].includes(f)) filter = f; } catch (e) {}
+  let filter = 'todo', q = '', cFilter = 'attention';
+  try { const f = localStorage.getItem(TAB_KEY); if (['todo', 'active', 'archive', 'contracts', 'recon'].includes(f)) filter = f; } catch (e) {}
+
+  // фильтры вкладки «Договоры»
+  const C_FILTERS = [
+    ['attention', 'Требуют внимания', s => s.task || s.check || s.stale],
+    ['soon', 'Истекают за 60 дней', s => s.state === 'soon' || s.state === 'expired'],
+    ['check', 'Проверить', s => s.check || s.stale],
+    ['auto', 'Автопролонгация', s => s.state === 'auto'],
+    ['sublease', 'Внешняя субаренда', (s, x) => x.kind === 'sublease' && s.state !== 'archived'],
+    ['all', 'Все действующие', s => s.state !== 'archived'],
+    ['archived', 'Архив', s => s.state === 'archived'],
+  ];
+  const isSub = x => x.kind === 'sublease';
+  const partyLabel = x => isSub(x) ? 'Субарендатор' : 'Арендодатель';
+  const cMatch = x => !q || [x.kc, x.landlord, x.ip, x.number, x.inn, x.contacts, x.kind === 'sublease' ? 'субаренда субарендатор' : ''].join(' ').toLowerCase().includes(q);
 
   function render() {
     const all = items.map(o => ({ o, c: calc(o) }));
     const active = all.filter(r => r.o.status === 'active');
     const todo = active.filter(r => needsAction(r.o, r.c));
     const archive = all.filter(r => r.o.status === 'archived');
-    $('#cTodo').textContent = todo.length; $('#cTodo').classList.toggle('hot', todo.length > 0);
+    const cs = contracts.map(x => ({ x, s: cCalc(x) }));
+    const cTasks = cs.filter(r => r.s.task).sort((a, b) => a.s.days - b.s.days);
+    const cAttention = cs.filter(r => C_FILTERS[0][2](r.s, r.x)).length;
+    const todoCount = todo.length + cTasks.length;
+    $('#cTodo').textContent = todoCount; $('#cTodo').classList.toggle('hot', todoCount > 0);
     $('#cActive').textContent = active.length; $('#cArchive').textContent = archive.length;
+    $('#cContr').textContent = cAttention; $('#cContr').classList.toggle('hot', cTasks.length > 0);
     document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.f === filter)));
     $('#tabHint').textContent = HINTS[filter];
     $('#addBtn').disabled = busy || !cfg;
+    $('#search').placeholder = filter === 'contracts' ? 'Поиск по КЦ, арендодателю, ИП, ИНН, телефону' : 'Поиск по адресу или сотруднику';
 
     // сверка актов не зависит от списка объектов: показываем её вместо списка
     const rc = filter === 'recon';
     $('#recon').hidden = !rc; $('#list').hidden = rc; document.querySelector('.toolbar').hidden = rc;
+    $('#cBar').hidden = filter !== 'contracts';
     if (rc) { if (window.Sverka) window.Sverka.mount($('#recon')); else $('#recon').innerHTML = '<div class="notice bad">Не загрузился файл sverka.js. Обновите страницу.</div>'; return; }
 
     const list = $('#list');
     if (!cfg) { list.innerHTML = ''; return; }
+    if (filter === 'contracts') return renderContracts(list, cs);
     let rows = filter === 'todo' ? todo : filter === 'active' ? active : archive;
     if (q) rows = rows.filter(r => (r.o.title + ' ' + r.o.resp).toLowerCase().includes(q));
     if (filter === 'archive') rows.sort((a, b) => (b.o.closedAt || '').localeCompare(a.o.closedAt || ''));
     else rows.sort((a, b) => urgency(a.o, a.c) - urgency(b.o, b.c));
 
+    // во вкладке «Сегодня» сначала договоры, которые пора продлевать
+    const cHtml = filter === 'todo' ? cTasks.filter(r => cMatch(r.x)).map(r => contractTask(r.x, r.s)).join('') : '';
     const warn = skipped ? `<div class="notice">Пропущено повреждённых записей: ${skipped}. Они остаются в файле, но не показываются, пока в них нет корректной даты размещения.</div>` : '';
-    if (!items.length) { list.innerHTML = warn + `<div class="empty">Объектов пока нет. Нажмите «+ Новый объект», укажите дату размещения и ставку. Даты обновления и снижения трекер посчитает сам.</div>`; return; }
-    if (!rows.length) {
-      const msg = q ? 'Ничего не найдено.' : filter === 'todo' ? 'На сегодня всё сделано. Ближайшие задачи есть во вкладке «Активные».' : filter === 'archive' ? 'В архиве пока пусто. Объявление попадает сюда после кнопки «Завершить».' : 'Активных объявлений нет.';
+    if (!items.length && !cHtml) { list.innerHTML = warn + `<div class="empty">${filter === 'todo' && contracts.length ? 'На сегодня всё сделано.' : 'Объектов пока нет. Нажмите «+ Новый объект», укажите дату размещения и ставку. Даты обновления и снижения трекер посчитает сам.'}</div>`; return; }
+    if (!rows.length && !cHtml) {
+      const msg = q ? 'Ничего не найдено.' : filter === 'todo' ? 'На сегодня всё сделано. Ближайшие задачи есть во вкладках «Активные» и «Договоры».' : filter === 'archive' ? 'В архиве пока пусто. Объявление попадает сюда после кнопки «Завершить».' : 'Активных объявлений нет.';
       list.innerHTML = warn + `<div class="empty">${msg}</div>`; return;
     }
-    list.innerHTML = warn + rows.map(({ o, c }) => o.status === 'archived' ? archRow(o, c) : row(o, c)).join('');
+    list.innerHTML = warn + cHtml + rows.map(({ o, c }) => o.status === 'archived' ? archRow(o, c) : row(o, c)).join('');
+  }
+
+  // --- договоры: отрисовка ---
+  const cPill = s => `<span class="pill ${s.cls}">${esc(s.label)}</span>`;
+  function renderContracts(list, cs) {
+    $('#cChips').innerHTML = C_FILTERS.map(([key, label, fn]) =>
+      `<button type="button" data-cf="${key}" aria-pressed="${cFilter === key}">${label} <span class="count">${cs.filter(r => fn(r.s, r.x)).length}</span></button>`).join('');
+    $('#cAdd').disabled = busy || !cfg;
+    const fn = (C_FILTERS.find(f => f[0] === cFilter) || C_FILTERS[0])[2];
+    const rows = cs.filter(r => fn(r.s, r.x) && cMatch(r.x));
+    const warn = cSkipped ? `<div class="notice">Пропущено повреждённых записей о договорах: ${cSkipped}. Они остаются в файле.</div>` : '';
+    if (!contracts.length) { list.innerHTML = warn + '<div class="empty">Договоров пока нет. Нажмите «+ Договор», чтобы добавить первый.</div>'; return; }
+    if (!rows.length) { list.innerHTML = warn + `<div class="empty">${q ? 'Ничего не найдено.' : cFilter === 'attention' ? 'Все договоры в порядке: ничего не истекает в ближайшие 60 дней, данные проверены.' : 'В этом разделе пусто.'}</div>`; return; }
+    // группируем по КЦ; сначала КЦ с самым срочным договором
+    const groups = new Map();
+    rows.forEach(r => { if (!groups.has(r.x.kc)) groups.set(r.x.kc, []); groups.get(r.x.kc).push(r); });
+    const prio = r => r.s.task ? r.s.days : r.s.check ? 5000 : r.s.stale ? 6000 : 9000 + (r.s.days ?? 0);
+    const sorted = [...groups.entries()].map(([kc, rs]) => ({ kc, rs: rs.sort((a, b) => prio(a) - prio(b)) }))
+      .sort((a, b) => prio(a.rs[0]) - prio(b.rs[0]) || a.kc.localeCompare(b.kc, 'ru'));
+    list.innerHTML = warn + sorted.map(g => {
+      const ips = [...new Set(g.rs.map(r => r.x.ip).filter(Boolean))];
+      return `<article class="kc"><div class="kc-head"><h2>${esc(g.kc)}</h2>${ips.length ? `<span class="r-sub">наше ИП: ${esc(ips.join(', '))}</span>` : ''}</div>
+        ${g.rs.map(r => contractRow(r.x, r.s)).join('')}</article>`;
+    }).join('');
+  }
+  function contractRow(x, s) {
+    const d = dis(); const id = x.id;
+    const flags = [s.check && s.state !== 'old' ? '<span class="pill due">проверить данные</span>' : '', s.stale ? '<span class="pill due">контакты не подтверждались полгода</span>' : '', s.snoozed ? `<span class="pill">напомнить ${fmtDate(x.snoozeUntil)}</span>` : ''].join(' ');
+    const acts = s.state === 'archived'
+      ? `<button type="button" class="ghost" data-ca="reopen" data-cid="${id}" ${d}>Вернуть из архива</button>`
+      : `<button type="button" data-ca="renew" data-cid="${id}" ${d}>Продлён…</button>
+         ${s.task ? `<button type="button" class="ghost" data-ca="snooze" data-cid="${id}" ${d} title="Записать, что связались, и напомнить через неделю">Связались, напомнить через неделю</button>` : ''}
+         ${s.check || s.stale ? `<button type="button" class="ghost" data-ca="confirm" data-cid="${id}" ${d}>Данные актуальны</button>` : ''}
+         <button type="button" class="ghost" data-ca="edit" data-cid="${id}" ${d}>Изменить</button>
+         ${s.state === 'old' || s.state === 'expired' ? `<button type="button" class="ghost" data-ca="archive" data-cid="${id}" ${d} title="Договор больше не действует">В архив</button>` : ''}`;
+    return `<div class="ct${s.state === 'archived' ? ' archived' : ''}">
+      <div class="ct-main">
+        ${isSub(x) ? '<span class="sub-tag">Внешняя субаренда · субарендатор</span>' : ''}
+        <b>${esc(x.landlord || partyLabel(x) + ' не указан')}</b>
+        <span class="r-sub">${x.number ? esc(x.number) : 'без номера'}${x.inn ? ' · ИНН ' + esc(x.inn) : ''}${x.start ? ' · с ' + fmtFull(x.start) : ''}${x.end ? ' · до ' + fmtFull(x.end) : ''}</span>
+        <div>${cPill(s)} ${flags}</div>
+      </div>
+      <div class="ct-contacts">${x.contacts ? linkify(x.contacts) : '<span class="muted">контакты не указаны</span>'}${x.email ? '<br>' + linkify(x.email) : ''}</div>
+      <div class="ct-act">${acts}</div>
+      <details><summary>Подробнее</summary>
+        <dl class="facts">
+          ${x.signed ? `<div><dt>Заключён</dt><dd>${fmtFull(x.signed)}</dd></div>` : ''}
+          ${x.endText ? `<div><dt>Срок в старой таблице</dt><dd>${esc(x.endText)}</dd></div>` : ''}
+          ${x.acts ? `<div><dt>Акты</dt><dd>${esc(x.acts)}</dd></div>` : ''}
+          <div><dt>Данные проверены</dt><dd>${x.checkedAt ? fmtFull(x.checkedAt) : 'ни разу'}</dd></div>
+        </dl>
+        ${x.emergency ? `<p class="ct-contacts"><b>Аварийные службы, УК:</b> ${linkify(x.emergency)}</p>` : ''}
+        ${x.note ? `<p class="r-sub">${esc(x.note)}</p>` : ''}
+        ${hist(x)}
+        <div class="m-actions"><span class="confirm" data-cdel="${id}"><button type="button" class="ghost danger" data-ca="del" data-cid="${id}" ${d}>Удалить</button></span></div>
+      </details>
+    </div>`;
+  }
+  // карточка договора во вкладке «Сегодня»
+  function contractTask(x, s) {
+    const d = dis(); const id = x.id;
+    const exp = s.state === 'expired';
+    return `<article class="row">
+      <div class="r-main">
+        <h2 class="r-title">${isSub(x) ? 'Субаренда' : 'Договор'}: ${esc(x.kc)}</h2>
+        <div class="r-sub">${partyLabel(x)}: <b>${esc(x.landlord || 'не указан')}</b>${x.number ? ' · ' + esc(x.number) : ''}${x.ip ? ' · наше ИП ' + esc(x.ip) : ''}</div>
+        <div class="ct-contacts">${x.contacts ? linkify(x.contacts) : '<span class="muted">контакты не указаны</span>'}${x.email ? '<br>' + linkify(x.email) : ''}</div>
+      </div>
+      <div class="tasks"><div class="task"><span class="dot ${exp || s.days <= 14 ? 'late' : s.days <= 30 ? 'due' : 'ok'}"></span>
+        <div><b>${exp ? 'Договор истёк: продлить или убрать в архив' : `Связаться с ${isSub(x) ? 'субарендатором' : 'арендодателем'} о продлении`}</b>
+          <small class="${exp || s.days <= 14 ? 'late' : s.days <= 30 ? 'due' : ''}">окончание ${fmtFull(x.end)} · ${exp ? 'истёк ' + dn(-s.days) + ' назад' : 'осталось ' + dn(s.days)}${x.autoRenew ? ' · автопролонгация' : ''}</small></div>
+        <span class="t-btns">
+          <button type="button" data-ca="renew" data-cid="${id}" ${d}>Продлён…</button>
+          <button type="button" class="ghost" data-ca="snooze" data-cid="${id}" ${d}>Связались</button>
+          ${exp ? `<button type="button" class="ghost" data-ca="archive" data-cid="${id}" ${d}>В архив</button>` : ''}
+        </span></div></div>
+    </article>`;
   }
 
   const titleHtml = o => o.link ? `<a href="${esc(o.link)}" target="_blank" rel="noopener noreferrer">${esc(o.title)}</a>` : esc(o.title);
@@ -718,6 +969,8 @@ legend{padding:0;margin-bottom:8px}
         if (!c.atMax && c.redIn <= 0) t.push(`снизить ставку до ${rub(c.nextRent)} (${whenText(c.redIn)})`);
         lines.push(`• ${o.title}${o.resp ? ' [' + o.resp + ']' : ''}: ${t.join('; ')}`);
       });
+    contracts.map(x => ({ x, s: cCalc(x) })).filter(r => r.s.task).sort((a, b) => a.s.days - b.s.days)
+      .forEach(({ x, s }) => lines.push(`• ${isSub(x) ? 'Субаренда' : 'Договор'} ${x.kc} (${x.landlord || partyLabel(x).toLowerCase() + ' не указан'}): ${s.state === 'expired' ? 'истёк ' + dn(-s.days) + ' назад' : 'заканчивается ' + fmtFull(x.end) + ', осталось ' + dn(s.days)} — продлить`));
     const head = `Аренда: задачи на ${parse(todayISO()).toLocaleDateString('ru-RU')}`;
     return lines.length ? `${head}\n${lines.join('\n')}` : `${head}\nПросроченных задач нет.`;
   }
@@ -770,6 +1023,156 @@ legend{padding:0;margin-bottom:8px}
     filter = b.dataset.f; try { localStorage.setItem(TAB_KEY, filter); } catch (e) {} render();
   }));
   $('#search').addEventListener('input', e => { q = e.target.value.trim().toLowerCase(); render(); });
+
+  // --- договоры: действия ---
+  async function cAct(id, kind, arg) {
+    const x0 = contracts.find(x => x.id === id); if (!x0) return;
+    const titles = { snooze: 'Связались по договору', confirm: 'Данные договора проверены', archive: 'Договор в архив', reopen: 'Договор возвращён из архива', renew: 'Договор продлён' };
+    await mutateC(list => {
+      const x = list.find(y => y.id === id); if (!x) return null;
+      const t = todayISO();
+      const h = text => { x.history = [entry(text), ...x.history].slice(0, 40); };
+      if (kind === 'snooze') { x.snoozeUntil = addDays(t, 7); h(`Связались с ${isSub(x) ? 'субарендатором' : 'арендодателем'}, напомнить ${fmtFull(x.snoozeUntil)}`); }
+      if (kind === 'confirm') { x.checkedAt = t; x.review = false; h('Данные и контакты проверены'); }
+      if (kind === 'archive') { x.status = 'archived'; h('Договор больше не действует, перенесён в архив'); }
+      if (kind === 'reopen') { x.status = 'active'; h('Возвращён из архива'); }
+      if (kind === 'renew') {
+        x.end = arg.indefinite ? null : arg.end; x.indefinite = arg.indefinite; x.autoRenew = arg.autoRenew;
+        if (arg.number) x.number = arg.number;
+        x.endText = ''; x.snoozeUntil = null; x.review = false; x.checkedAt = t; x.status = 'active';
+        h(`Продлён ${arg.indefinite ? 'бессрочно' : 'до ' + fmtFull(arg.end)}${arg.number ? ', ' + arg.number : ''}${arg.autoRenew ? ', автопролонгация' : ''}`);
+      }
+      return list;
+    }, `${titles[kind] || 'Изменение договора'}: ${x0.kc}, ${x0.landlord}`);
+  }
+  $('#cChips').addEventListener('click', e => {
+    const b = e.target.closest('[data-cf]'); if (!b) return;
+    cFilter = b.dataset.cf; render();
+  });
+  $('#list').addEventListener('click', async e => {
+    const b = e.target.closest('button[data-ca]'); if (!b || b.disabled) return;
+    const { ca, cid } = b.dataset;
+    const x = contracts.find(y => y.id === cid);
+    if (ca === 'edit') return openContract(x);
+    if (ca === 'renew') return openRenew(x);
+    if (ca === 'del') {
+      document.querySelector(`[data-cdel="${cid}"]`).innerHTML = `Удалить договор? Восстановить можно будет только из истории репозитория. <button type="button" class="danger" data-ca="delyes" data-cid="${cid}">Да, удалить</button><button type="button" class="ghost" data-ca="cancel" data-cid="${cid}">Нет</button>`;
+      return;
+    }
+    if (ca === 'cancel') return render();
+    b.disabled = true;
+    try {
+      if (ca === 'delyes') { await mutateC(list => list.filter(y => y.id !== cid), `Удалён договор: ${x ? x.kc + ', ' + x.landlord : cid}`); toast('Договор удалён.'); }
+      else { await cAct(cid, ca); if (ca === 'snooze') toast('Записано. Напомню через неделю.'); if (ca === 'archive') toast('Договор перенесён в архив.'); }
+    } catch (err) { b.disabled = false; }
+  });
+
+  // форма договора
+  const cDlg = $('#cDlg'); const Kf = id => $('#k_' + id); let cEditId = null;
+  function fillLists() {
+    const uniq = arr => [...new Set(arr.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru'));
+    $('#kcList').innerHTML = uniq(contracts.map(x => x.kc)).map(n => `<option value="${esc(n)}"></option>`).join('');
+    $('#ipList').innerHTML = uniq(contracts.map(x => x.ip)).map(n => `<option value="${esc(n)}"></option>`).join('');
+  }
+  function openContract(x) {
+    cEditId = x ? x.id : null; fillLists();
+    $('#cTitle').textContent = x ? 'Изменить договор' : 'Новый договор'; $('#kErr').hidden = true;
+    for (const f of ['kc', 'ip', 'landlord', 'inn', 'number', 'contacts', 'email', 'emergency', 'acts', 'note']) Kf(f).value = x ? x[f] : '';
+    Kf('signed').value = x?.signed || ''; Kf('start').value = x?.start || ''; Kf('end').value = x?.end || '';
+    Kf('kind').value = x?.kind || 'lease'; $('#k_partyLbl').textContent = partyLabel({ kind: Kf('kind').value });
+    Kf('auto').checked = !!x?.autoRenew; Kf('indef').checked = !!x?.indefinite;
+    cDlg.showModal(); (x ? Kf('landlord') : Kf('kc')).focus();
+  }
+  $('#cAdd').addEventListener('click', () => openContract(null));
+  $('#k_kind').addEventListener('change', () => { $('#k_partyLbl').textContent = partyLabel({ kind: Kf('kind').value }); });
+  $('#kCancel').addEventListener('click', () => cDlg.close());
+  $('#cForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const err = m => { $('#kErr').textContent = m; $('#kErr').hidden = false; };
+    const v = f => Kf(f).value.trim();
+    if (!v('kc')) return err('Укажите КЦ.');
+    if (!v('landlord')) return err(Kf('kind').value === 'sublease' ? 'Укажите субарендатора.' : 'Укажите арендодателя.');
+    const indef = Kf('indef').checked, end = Kf('end').value;
+    if (!indef && !okDate(end)) return err('Укажите дату окончания или отметьте «Бессрочный».');
+    const fields = { kind: Kf('kind').value, kc: v('kc'), ip: v('ip'), landlord: v('landlord'), inn: v('inn'), number: v('number'),
+      signed: okDate(Kf('signed').value), start: okDate(Kf('start').value), end: indef ? null : end, autoRenew: Kf('auto').checked, indefinite: indef,
+      contacts: v('contacts'), email: v('email'), emergency: v('emergency'), acts: v('acts'), note: v('note') };
+    const id = cEditId;
+    $('#kSave').disabled = true;
+    try {
+      await mutateC(list => {
+        const t = todayISO();
+        if (id) {
+          const i = list.findIndex(y => y.id === id); if (i < 0) return null;
+          const prev = list[i];
+          const next = normalizeContract({ ...prev, ...fields, endText: prev.end === fields.end ? prev.endText : '', review: false, checkedAt: t });
+          next.history = [entry(prev.end !== next.end ? `Изменён, окончание ${next.end ? fmtFull(next.end) : 'не указано'}` : 'Данные договора изменены'), ...next.history].slice(0, 40);
+          list[i] = next;
+        } else {
+          const nid = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+          const next = normalizeContract({ ...fields, id: nid, status: 'active', checkedAt: t, history: [] });
+          next.history = [entry('Договор добавлен')];
+          list.push(next);
+        }
+        return list;
+      }, `${id ? 'Изменён договор' : 'Новый договор'}: ${fields.kc}, ${fields.landlord}`);
+      cDlg.close(); toast(id ? 'Договор сохранён.' : 'Договор добавлен.');
+    } catch (x) { err(x.message || 'Не удалось сохранить.'); }
+    finally { $('#kSave').disabled = false; }
+  });
+
+  // продление
+  const renewDlg = $('#renewDlg'); let renewId = null;
+  function openRenew(x) {
+    if (!x) return; renewId = x.id; $('#rnErr').hidden = true;
+    $('#rnTitle').textContent = `${x.kc} · ${x.landlord}${x.end ? '. Сейчас до ' + fmtFull(x.end) : ''}`;
+    $('#rn_end').value = ''; $('#rn_number').value = ''; $('#rn_auto').checked = x.autoRenew; $('#rn_indef').checked = false;
+    renewDlg.showModal(); $('#rn_end').focus();
+  }
+  $('#rnCancel').addEventListener('click', () => renewDlg.close());
+  $('#renewForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const err = m => { $('#rnErr').textContent = m; $('#rnErr').hidden = false; };
+    const indef = $('#rn_indef').checked, end = $('#rn_end').value;
+    if (!indef && !okDate(end)) return err('Укажите новую дату окончания или отметьте «Бессрочный».');
+    if (!indef && end <= todayISO()) return err('Новая дата окончания должна быть позже сегодняшней.');
+    $('#rnSave').disabled = true;
+    try {
+      await cAct(renewId, 'renew', { end: indef ? null : end, indefinite: indef, autoRenew: $('#rn_auto').checked, number: $('#rn_number').value.trim().slice(0, 200) });
+      renewDlg.close(); toast('Продление сохранено.');
+    } catch (x) { err(x.message || 'Не удалось сохранить.'); }
+    finally { $('#rnSave').disabled = false; }
+  });
+
+  // выгрузка договоров в Excel (библиотека SheetJS подгружается только по нажатию)
+  function loadSheetJs() {
+    if (window.XLSX) return Promise.resolve(window.XLSX);
+    return new Promise((ok, fail) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      s.onload = () => ok(window.XLSX); s.onerror = () => fail(new Error('Не удалось загрузить модуль Excel. Проверьте интернет.'));
+      document.head.appendChild(s);
+    });
+  }
+  $('#cExport').addEventListener('click', async () => {
+    const b = $('#cExport'); b.disabled = true;
+    try {
+      const X = await loadSheetJs();
+      const d = s => s ? parse(s) : null;
+      const head = ['КЦ', 'Тип', 'Наше ИП', 'Арендодатель / субарендатор', 'ИНН', '№ договора', 'Дата заключения', 'Дата начала', 'Дата окончания', 'Автопролонгация', 'Бессрочный', 'Состояние', 'Осталось дней', 'Контактные лица и телефоны', 'Почта', 'Аварийные службы, УК', 'Акты', 'Комментарий', 'Данные проверены', 'Срок в старой таблице'];
+      const rows = contracts.map(x => ({ x, s: cCalc(x) }))
+        .sort((a, b) => (a.x.status === 'archived') - (b.x.status === 'archived') || a.x.kc.localeCompare(b.x.kc, 'ru'))
+        .map(({ x, s }) => [x.kc, isSub(x) ? 'Внешняя субаренда' : 'Аренда', x.ip, x.landlord, x.inn, x.number, d(x.signed), d(x.start), d(x.end), x.autoRenew ? 'да' : '', x.indefinite ? 'да' : '', s.label, s.days ?? '', x.contacts, x.email, x.emergency, x.acts, x.note, d(x.checkedAt), x.endText]);
+      // «/» в формате Excel показывает как разделитель даты системы: в русском Excel это точка (01.10.2026)
+      const ws = X.utils.aoa_to_sheet([head, ...rows], { cellDates: true, dateNF: 'dd/mm/yyyy' });
+      ws['!cols'] = [28, 16, 14, 32, 14, 18, 12, 12, 12, 10, 10, 26, 8, 48, 28, 36, 18, 30, 12, 26].map(w => ({ wch: w }));
+      ws['!autofilter'] = { ref: `A1:T${rows.length + 1}` };
+      const wbx = X.utils.book_new(); X.utils.book_append_sheet(wbx, ws, 'Договоры');
+      X.writeFile(wbx, `Договоры КЦ ${parse(todayISO()).toLocaleDateString('ru-RU')}.xlsx`);
+      toast('Файл Excel скачан.');
+    } catch (x) { note('Не удалось выгрузить в Excel: ' + ((x && x.message) || String(x)), true); }
+    finally { b.disabled = false; }
+  });
 
   // --- ставка вручную: рубли и проценты пересчитываются друг в друга ---
   const round2 = n => Math.round(n * 100) / 100;
@@ -981,7 +1384,7 @@ legend{padding:0;margin-bottom:8px}
       setupDlg.close(); S('token').value = '';
       startSession({ ...c, login }, false);
       apply(res); lastSync = new Date();
-      showApp();
+      showApp(); refresh(true);
       openUsers([entry], { login, pw, first: true }, { [login]: { name: c.name, admin: true, created: todayISO() } });
     } catch (x) { err(x.message || 'Не удалось подключиться.'); }
     finally { $('#sSave').disabled = false; }
