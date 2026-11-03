@@ -243,6 +243,21 @@ legend{padding:0;margin-bottom:8px}
   </form>
 </dialog>
 
+<!-- Срок связи по договору -->
+<dialog id="contactDlg">
+  <form class="f" id="contactForm" novalidate>
+    <h2>Когда связаться по договору</h2>
+    <p class="help" id="contactTitle"></p>
+    <label>Дата следующей связи<input id="contactDate" type="date" required></label>
+    <p class="help">Выберите сегодня для срочных вопросов или любую будущую дату.</p>
+    <div class="err" id="contactErr" hidden></div>
+    <div class="f-actions">
+      <button type="button" class="ghost" id="contactCancel">Отмена</button>
+      <button type="submit" class="primary" id="contactSave">Сохранить срок</button>
+    </div>
+  </form>
+</dialog>
+
 <!-- Продление договора -->
 <dialog id="renewDlg">
   <form class="f" id="renewForm" novalidate>
@@ -492,6 +507,13 @@ legend{padding:0;margin-bottom:8px}
   }
   // состояние договора: что показать и нужно ли действие сегодня
   function cCalc(x) {
+    const s = cBaseCalc(x);
+    if (x.status !== 'archived' && x.snoozeUntil) {
+      s.task = x.snoozeUntil <= todayISO();
+    }
+    return s;
+  }
+  function cBaseCalc(x) {
     const t = todayISO();
     const stale = !x.checkedAt || diff(x.checkedAt, t) > C_STALE;
     const snoozed = !!(x.snoozeUntil && x.snoozeUntil > t);
@@ -828,11 +850,11 @@ legend{padding:0;margin-bottom:8px}
   }
   function contractRow(x, s) {
     const d = dis(); const id = x.id;
-    const flags = [s.check && s.state !== 'old' ? '<span class="pill due">проверить данные</span>' : '', s.stale ? '<span class="pill due">контакты не подтверждались полгода</span>' : '', s.snoozed ? `<span class="pill">напомнить ${fmtDate(x.snoozeUntil)}</span>` : ''].join(' ');
+    const flags = [s.check && s.state !== 'old' ? '<span class="pill due">проверить данные</span>' : '', s.stale ? '<span class="pill due">контакты не подтверждались полгода</span>' : '', x.snoozeUntil && s.state !== 'archived' ? `<span class="pill ${s.snoozed ? '' : 'due'}">связаться ${fmtFull(x.snoozeUntil)}</span>` : ''].join(' ');
     const acts = s.state === 'archived'
       ? `<button type="button" class="ghost" data-ca="reopen" data-cid="${id}" ${d}>Вернуть из архива</button>`
       : `<button type="button" data-ca="renew" data-cid="${id}" ${d}>Продлён…</button>
-         ${s.task ? `<button type="button" class="ghost" data-ca="snooze" data-cid="${id}" ${d} title="Записать, что связались, и напомнить через неделю">Связались, напомнить через неделю</button>` : ''}
+         <button type="button" class="ghost" data-ca="snooze" data-cid="${id}" ${d}>${x.snoozeUntil ? 'Изменить срок связи…' : 'Связаться / напомнить…'}</button>
          ${s.check || s.stale ? `<button type="button" class="ghost" data-ca="confirm" data-cid="${id}" ${d}>Данные актуальны</button>` : ''}
          <button type="button" class="ghost" data-ca="edit" data-cid="${id}" ${d}>Изменить</button>
          ${s.state === 'old' || s.state === 'expired' ? `<button type="button" class="ghost" data-ca="archive" data-cid="${id}" ${d} title="Договор больше не действует">В архив</button>` : ''}`;
@@ -870,11 +892,11 @@ legend{padding:0;margin-bottom:8px}
         <div class="ct-contacts">${x.contacts ? linkify(x.contacts) : '<span class="muted">контакты не указаны</span>'}${x.email ? '<br>' + linkify(x.email) : ''}</div>
       </div>
       <div class="tasks"><div class="task"><span class="dot ${exp || s.days <= 14 ? 'late' : s.days <= 30 ? 'due' : 'ok'}"></span>
-        <div><b>${exp ? 'Договор истёк: продлить или убрать в архив' : `Связаться с ${isSub(x) ? 'субарендатором' : 'арендодателем'} о продлении`}</b>
-          <small class="${exp || s.days <= 14 ? 'late' : s.days <= 30 ? 'due' : ''}">окончание ${fmtFull(x.end)} · ${exp ? 'истёк ' + dn(-s.days) + ' назад' : 'осталось ' + dn(s.days)}${x.autoRenew ? ' · автопролонгация' : ''}</small></div>
+        <div><b>${x.snoozeUntil ? 'Связаться по договору' : exp ? 'Договор истёк: продлить или убрать в архив' : `Связаться с ${isSub(x) ? 'субарендатором' : 'арендодателем'} о продлении`}</b>
+          <small class="${exp || s.days <= 14 ? 'late' : s.days <= 30 ? 'due' : ''}">${x.snoozeUntil ? 'срок связи ' + fmtFull(x.snoozeUntil) : ''}${x.end ? (x.snoozeUntil ? ' · ' : '') + 'окончание ' + fmtFull(x.end) : ''}${x.autoRenew ? ' · автопролонгация' : ''}</small></div>
         <span class="t-btns">
           <button type="button" data-ca="renew" data-cid="${id}" ${d}>Продлён…</button>
-          <button type="button" class="ghost" data-ca="snooze" data-cid="${id}" ${d}>Связались</button>
+          <button type="button" class="ghost" data-ca="snooze" data-cid="${id}" ${d}>Связаться / напомнить…</button>
           ${exp ? `<button type="button" class="ghost" data-ca="archive" data-cid="${id}" ${d}>В архив</button>` : ''}
         </span></div></div>
     </article>`;
@@ -1032,7 +1054,7 @@ legend{padding:0;margin-bottom:8px}
       const x = list.find(y => y.id === id); if (!x) return null;
       const t = todayISO();
       const h = text => { x.history = [entry(text), ...x.history].slice(0, 40); };
-      if (kind === 'snooze') { x.snoozeUntil = addDays(t, 7); h(`Связались с ${isSub(x) ? 'субарендатором' : 'арендодателем'}, напомнить ${fmtFull(x.snoozeUntil)}`); }
+      if (kind === 'snooze') { x.snoozeUntil = arg; h(`Назначен срок связи с ${isSub(x) ? 'субарендатором' : 'арендодателем'}: ${fmtFull(x.snoozeUntil)}`); }
       if (kind === 'confirm') { x.checkedAt = t; x.review = false; h('Данные и контакты проверены'); }
       if (kind === 'archive') { x.status = 'archived'; h('Договор больше не действует, перенесён в архив'); }
       if (kind === 'reopen') { x.status = 'active'; h('Возвращён из архива'); }
@@ -1055,6 +1077,7 @@ legend{padding:0;margin-bottom:8px}
     const x = contracts.find(y => y.id === cid);
     if (ca === 'edit') return openContract(x);
     if (ca === 'renew') return openRenew(x);
+    if (ca === 'snooze') return openContact(x);
     if (ca === 'del') {
       document.querySelector(`[data-cdel="${cid}"]`).innerHTML = `Удалить договор? Восстановить можно будет только из истории репозитория. <button type="button" class="danger" data-ca="delyes" data-cid="${cid}">Да, удалить</button><button type="button" class="ghost" data-ca="cancel" data-cid="${cid}">Нет</button>`;
       return;
@@ -1063,7 +1086,7 @@ legend{padding:0;margin-bottom:8px}
     b.disabled = true;
     try {
       if (ca === 'delyes') { await mutateC(list => list.filter(y => y.id !== cid), `Удалён договор: ${x ? x.kc + ', ' + x.landlord : cid}`); toast('Договор удалён.'); }
-      else { await cAct(cid, ca); if (ca === 'snooze') toast('Записано. Напомню через неделю.'); if (ca === 'archive') toast('Договор перенесён в архив.'); }
+      else { await cAct(cid, ca); if (ca === 'archive') toast('Договор перенесён в архив.'); }
     } catch (err) { b.disabled = false; }
   });
 
@@ -1119,6 +1142,32 @@ legend{padding:0;margin-bottom:8px}
       cDlg.close(); toast(id ? 'Договор сохранён.' : 'Договор добавлен.');
     } catch (x) { err(x.message || 'Не удалось сохранить.'); }
     finally { $('#kSave').disabled = false; }
+  });
+
+  // срок следующей связи
+  const contactDlg = $('#contactDlg'); let contactId = null;
+  function openContact(x) {
+    if (!x) return;
+    contactId = x.id; $('#contactErr').hidden = true;
+    $('#contactTitle').textContent = `${x.kc} · ${x.landlord}`;
+    $('#contactDate').min = todayISO();
+    $('#contactDate').value = x.snoozeUntil && x.snoozeUntil >= todayISO() ? x.snoozeUntil : addDays(todayISO(), 7);
+    contactDlg.showModal(); $('#contactDate').focus();
+  }
+  $('#contactCancel').addEventListener('click', () => contactDlg.close());
+  $('#contactForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    if ($('#contactSave').disabled) return;
+    const err = m => { $('#contactErr').textContent = m; $('#contactErr').hidden = false; };
+    const date = $('#contactDate').value;
+    if (!okDate(date)) return err('Укажите дату следующей связи.');
+    if (date < todayISO()) return err('Выберите сегодня или будущую дату.');
+    $('#contactSave').disabled = true;
+    try {
+      await cAct(contactId, 'snooze', date);
+      contactDlg.close(); toast(`Срок связи сохранён: ${fmtFull(date)}.`);
+    } catch (x) { err(x.message || 'Не удалось сохранить.'); }
+    finally { $('#contactSave').disabled = false; }
   });
 
   // продление
