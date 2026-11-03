@@ -122,6 +122,26 @@ button.ghost.link{font-size:13px;font-family:var(--f-body);font-weight:500;color
 .ct-contacts{font-size:13px;line-height:1.45;min-width:0;overflow-wrap:anywhere}
 .ct-contacts a{color:var(--accent);text-decoration:none}
 .ct-contacts a:hover{text-decoration:underline}
+#cDlg{width:min(1000px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:hidden;box-sizing:border-box}
+#cDlg [hidden]{display:none!important}
+#cDlg form.f{box-sizing:border-box;max-height:calc(100dvh - 34px);gap:12px;margin:0;overflow:hidden}
+#cDlg h2{margin:0;flex-shrink:0}
+.card-tabs{display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0}
+.card-tabs button[aria-pressed="true"]{background:var(--accent);color:white}
+#cDlg .grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 14px;overflow-y:auto;min-height:0;padding-right:4px}
+#cDlg .grid .wide{grid-column:1/-1}
+#cDlg textarea{min-height:60px}
+#cDlg .f-actions{flex-shrink:0;margin-top:0}
+#cDlg .landlord-files{overflow-y:auto;min-height:0;padding-top:12px}
+@media(max-width:700px){#cDlg .grid{grid-template-columns:repeat(2,minmax(0,1fr))}#cDlg form.f{padding:14px}}
+@media(max-width:420px){#cDlg .grid{grid-template-columns:1fr}.card-tabs button{padding:6px 8px}}
+.landlord-files{border-top:1px solid var(--line)}
+.ct-files{grid-column:1/-1;display:grid;gap:8px;min-width:0}
+.ct-file-list{margin:0;padding-left:20px;overflow-wrap:anywhere}
+.ct-files input{display:block;max-width:100%;margin-top:6px}
+.ct-comment{grid-column:1/-1;display:grid;gap:6px}
+.ct-comment textarea{min-height:65px;resize:vertical}
+.ct-comment button{justify-self:start}
 .ct-act{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .ct details{grid-column:1/-1;font-size:13px}
 .ct details summary{cursor:pointer;color:var(--muted)}
@@ -217,24 +237,29 @@ legend{padding:0;margin-bottom:8px}
 <dialog id="cDlg">
   <form class="f" id="cForm" novalidate>
     <h2 id="cTitle">Новый договор</h2>
+    <nav class="card-tabs" aria-label="Разделы карточки">
+      <button type="button" data-card-tab="main" aria-pressed="true">Основная информация</button>
+      <button type="button" data-card-tab="contacts" aria-pressed="false">Контакты</button>
+      <button type="button" data-card-tab="files" aria-pressed="false">Файлы договора</button>
+    </nav>
     <div class="grid">
-      <label class="wide">КЦ<input id="k_kc" list="kcList" autocomplete="off" placeholder="OQ м. Василеостровская"></label>
-      <label>Тип договора<select id="k_kind"><option value="lease">Аренда (арендуем у арендодателя)</option><option value="sublease">Внешняя субаренда (сдаём субарендатору)</option></select></label>
-      <label>Наше ИП<input id="k_ip" list="ipList" autocomplete="off" placeholder="Кузнецова"></label>
-      <label class="wide"><span id="k_partyLbl">Арендодатель</span><input id="k_landlord" autocomplete="off" placeholder="ИП Иванов И.И. / ООО «…»"></label>
-      <label>ИНН<input id="k_inn" inputmode="numeric" autocomplete="off"></label>
-      <label>№ договора / ДС<input id="k_number" autocomplete="off"></label>
-      <label>Дата заключения<input id="k_signed" type="date"></label>
-      <label>Дата начала<input id="k_start" type="date"></label>
-      <label>Дата окончания<input id="k_end" type="date"></label>
-      <label class="check"><input id="k_auto" type="checkbox"> Автопролонгация</label>
-      <label class="check"><input id="k_indef" type="checkbox"> Бессрочный</label>
-      <label class="wide">Контактные лица и телефоны<textarea id="k_contacts" placeholder="Ольга +7 911 000-00-00 — договоры"></textarea></label>
-      <label class="wide">Почта<input id="k_email" autocomplete="off" placeholder="arenda@example.ru"></label>
-      <label class="wide">Аварийные службы, УК, ТСЖ<textarea id="k_emergency"></textarea></label>
-      <label>Акты / закрывающие<input id="k_acts" autocomplete="off" placeholder="ЭДО / на почту / не делаем"></label>
-      <label class="wide">Комментарий<textarea id="k_note"></textarea></label>
+      <label class="wide" data-card-group="main">КЦ<input id="k_kc" list="kcList" autocomplete="off" placeholder="OQ м. Василеостровская"></label>
+      <label data-card-group="main">Тип договора<select id="k_kind"><option value="lease">Аренда (арендуем у арендодателя)</option><option value="sublease">Внешняя субаренда (сдаём субарендатору)</option></select></label>
+      <label data-card-group="main">Наше ИП<input id="k_ip" list="ipList" autocomplete="off" placeholder="Кузнецова"></label>
+      <label class="wide" data-card-group="main"><span id="k_partyLbl">Арендодатель</span><input id="k_landlord" autocomplete="off" placeholder="ИП Иванов И.И. / ООО «…»"></label>
+      <label data-card-group="main">ИНН<input id="k_inn" inputmode="numeric" autocomplete="off"></label>
+      <label data-card-group="main">№ договора / ДС<input id="k_number" autocomplete="off"></label>
+      <label data-card-group="main">Дата заключения<input id="k_signed" type="date"></label>
+      <label data-card-group="main">Дата начала<input id="k_start" type="date"></label>
+      <label data-card-group="main">Дата окончания<input id="k_end" type="date"></label>
+      <label class="check" data-card-group="main"><input id="k_auto" type="checkbox"> Автопролонгация</label>
+      <label class="wide" data-card-group="contacts">Контактные лица и телефоны<textarea id="k_contacts" placeholder="Ольга +7 911 000-00-00 — договоры"></textarea></label>
+      <label class="wide" data-card-group="contacts">Почта<input id="k_email" autocomplete="off" placeholder="arenda@example.ru"></label>
+      <label class="wide" data-card-group="contacts">Аварийные службы, УК, ТСЖ<textarea id="k_emergency"></textarea></label>
+      <label data-card-group="contacts">Акты / закрывающие<input id="k_acts" autocomplete="off" placeholder="ЭДО / на почту / не делаем"></label>
+      <label class="wide" data-card-group="main">Комментарий<textarea id="k_note"></textarea></label>
     </div>
+    <div class="landlord-files" id="landlordFiles" hidden></div>
     <div class="err" id="kErr" hidden></div>
     <div class="f-actions">
       <button type="button" class="ghost" id="kCancel">Отмена</button>
@@ -267,7 +292,6 @@ legend{padding:0;margin-bottom:8px}
       <label>Новая дата окончания<input id="rn_end" type="date"></label>
       <label>№ договора или ДС<input id="rn_number" autocomplete="off" placeholder="ДС №3 от 01.11.2026"></label>
       <label class="check"><input id="rn_auto" type="checkbox"> Автопролонгация</label>
-      <label class="check"><input id="rn_indef" type="checkbox"> Бессрочный</label>
     </div>
     <div class="err" id="rnErr" hidden></div>
     <div class="f-actions">
@@ -499,6 +523,7 @@ legend{padding:0;margin-bottom:8px}
       autoRenew: d.autoRenew === true, indefinite: d.indefinite === true,
       contacts: str(d.contacts, 2000), email: str(d.email, 500), emergency: str(d.emergency, 1000),
       acts: str(d.acts, 300), note: str(d.note, 1000),
+      attachments: Array.isArray(d.attachments) ? d.attachments.filter(f => f && typeof f.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(f.id) && f.path === 'contract-files/' + id + '/' + f.id && typeof f.name === 'string' && f.name.length > 0 && Number.isFinite(f.size) && f.size >= 0).map(f => ({id:f.id, name:str(f.name, 255), path:f.path, size:f.size})) : [],
       checkedAt: okDate(d.checkedAt), snoozeUntil: okDate(d.snoozeUntil), review: d.review === true,
       status: d.status === 'archived' ? 'archived' : 'active',
       history: Array.isArray(d.history) ? d.history.filter(h => h && okDate(h.d)).slice(0, 40)
@@ -629,7 +654,7 @@ legend{padding:0;margin-bottom:8px}
     try {
       r = await fetch('https://api.github.com' + path, {
         method: opts.method || 'GET', cache: 'no-store',
-        headers: { Authorization: 'Bearer ' + c.token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...(opts.body ? { 'Content-Type': 'application/json' } : {}) },
+        headers: { Authorization: 'Bearer ' + c.token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...(opts.body ? { 'Content-Type': 'application/json' } : {}), ...(opts.headers || {}) },
         body: opts.body ? JSON.stringify(opts.body) : undefined,
       });
     } catch (e) { throw ghErr('net', 'Нет связи с GitHub. Проверьте интернет.'); }
@@ -784,6 +809,7 @@ legend{padding:0;margin-bottom:8px}
   const cMatch = x => !q || [x.kc, x.landlord, x.ip, x.number, x.inn, x.contacts, x.kind === 'sublease' ? 'субаренда субарендатор' : ''].join(' ').toLowerCase().includes(q);
 
   function render() {
+    if ($('#cDlg').open) refreshLandlordFiles();
     const all = items.map(o => ({ o, c: calc(o) }));
     const active = all.filter(r => r.o.status === 'active');
     const todo = active.filter(r => needsAction(r.o, r.c));
@@ -856,7 +882,6 @@ legend{padding:0;margin-bottom:8px}
       : `<button type="button" data-ca="renew" data-cid="${id}" ${d}>Продлён…</button>
          <button type="button" class="ghost" data-ca="snooze" data-cid="${id}" ${d}>${x.snoozeUntil ? 'Изменить срок связи…' : 'Связаться / напомнить…'}</button>
          ${s.check || s.stale ? `<button type="button" class="ghost" data-ca="confirm" data-cid="${id}" ${d}>Данные актуальны</button>` : ''}
-         <button type="button" class="ghost" data-ca="edit" data-cid="${id}" ${d}>Изменить</button>
          ${s.state === 'old' || s.state === 'expired' ? `<button type="button" class="ghost" data-ca="archive" data-cid="${id}" ${d} title="Договор больше не действует">В архив</button>` : ''}`;
     return `<div class="ct${s.state === 'archived' ? ' archived' : ''}">
       <div class="ct-main">
@@ -866,7 +891,12 @@ legend{padding:0;margin-bottom:8px}
         <div>${cPill(s)} ${flags}</div>
       </div>
       <div class="ct-contacts">${x.contacts ? linkify(x.contacts) : '<span class="muted">контакты не указаны</span>'}${x.email ? '<br>' + linkify(x.email) : ''}</div>
-      <div class="ct-act">${acts}</div>
+      <form class="ct-comment" data-cnote="${id}">
+        <label for="comment-${id}">Комментарий</label>
+        <textarea id="comment-${id}" name="comment" maxlength="1000" placeholder="Договорённости, документы, результат разговора…" ${d} ${s.state === 'archived' ? 'readonly' : ''}>${esc(x.note)}</textarea>
+        ${s.state !== 'archived' ? `<button type="submit" class="ghost" ${d}>Сохранить комментарий</button>` : ''}
+      </form>
+      <div class="ct-act"><button type="button" data-ca="card" data-cid="${id}" ${d}>Карточка арендодателя</button>${acts}</div>
       <details><summary>Подробнее</summary>
         <dl class="facts">
           ${x.signed ? `<div><dt>Заключён</dt><dd>${fmtFull(x.signed)}</dd></div>` : ''}
@@ -875,7 +905,6 @@ legend{padding:0;margin-bottom:8px}
           <div><dt>Данные проверены</dt><dd>${x.checkedAt ? fmtFull(x.checkedAt) : 'ни разу'}</dd></div>
         </dl>
         ${x.emergency ? `<p class="ct-contacts"><b>Аварийные службы, УК:</b> ${linkify(x.emergency)}</p>` : ''}
-        ${x.note ? `<p class="r-sub">${esc(x.note)}</p>` : ''}
         ${hist(x)}
         <div class="m-actions"><span class="confirm" data-cdel="${id}"><button type="button" class="ghost danger" data-ca="del" data-cid="${id}" ${d}>Удалить</button></span></div>
       </details>
@@ -895,6 +924,7 @@ legend{padding:0;margin-bottom:8px}
         <div><b>${x.snoozeUntil ? 'Связаться по договору' : exp ? 'Договор истёк: продлить или убрать в архив' : `Связаться с ${isSub(x) ? 'субарендатором' : 'арендодателем'} о продлении`}</b>
           <small class="${exp || s.days <= 14 ? 'late' : s.days <= 30 ? 'due' : ''}">${x.snoozeUntil ? 'срок связи ' + fmtFull(x.snoozeUntil) : ''}${x.end ? (x.snoozeUntil ? ' · ' : '') + 'окончание ' + fmtFull(x.end) : ''}${x.autoRenew ? ' · автопролонгация' : ''}</small></div>
         <span class="t-btns">
+          <button type="button" class="ghost" data-ca="card" data-cid="${id}" ${d}>Карточка арендодателя</button>
           <button type="button" data-ca="renew" data-cid="${id}" ${d}>Продлён…</button>
           <button type="button" class="ghost" data-ca="snooze" data-cid="${id}" ${d}>Связаться / напомнить…</button>
           ${exp ? `<button type="button" class="ghost" data-ca="archive" data-cid="${id}" ${d}>В архив</button>` : ''}
@@ -1075,7 +1105,7 @@ legend{padding:0;margin-bottom:8px}
     const b = e.target.closest('button[data-ca]'); if (!b || b.disabled) return;
     const { ca, cid } = b.dataset;
     const x = contracts.find(y => y.id === cid);
-    if (ca === 'edit') return openContract(x);
+    if (ca === 'edit' || ca === 'card') return openContract(x);
     if (ca === 'renew') return openRenew(x);
     if (ca === 'snooze') return openContact(x);
     if (ca === 'del') {
@@ -1090,6 +1120,156 @@ legend{padding:0;margin-bottom:8px}
     } catch (err) { b.disabled = false; }
   });
 
+  // Файлы хранятся отдельно от JSON договоров; тестовые файлы — только в памяти.
+  const ATTACHMENT_DEMO = false;
+  const demoFiles = new Map();
+  let attachmentBusy = false;
+  const attachmentPath = (cid, fid) => 'contract-files/' + cid + '/' + fid;
+  const attachmentApi = path => repoContents(cfg) + encPath(cfg.path.replace(/[^/]*$/, '') + path);
+  function attachmentStatus(cid, text) {
+    const box = [...document.querySelectorAll('[data-file-status]')].find(x => x.dataset.fileStatus === cid);
+    if (box) box.textContent = text;
+  }
+  async function uploadAttachment(cid, file) {
+    const fid = 'f' + crypto.randomUUID().replace(/-/g, '');
+    const path = attachmentPath(cid, fid);
+    if (ATTACHMENT_DEMO) demoFiles.set(fid, file);
+    else {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let binary = '';
+      for (let i = 0; i < bytes.length; i += 32768) binary += String.fromCharCode(...bytes.subarray(i, i + 32768));
+      const r = await gh(cfg, attachmentApi(path), {method:'PUT', body:{message:'Прикреплён файл договора: ' + file.name, content:btoa(binary), branch:cfg.branch}});
+      if (!r.ok) throw new Error('Не удалось загрузить файл «' + file.name + '» (GitHub ' + r.status + ').');
+    }
+    const meta = {id:fid, name:file.name, size:file.size, path};
+    await mutateC(list => {
+      const x = list.find(x => x.id === cid);
+      if (!x || x.status === 'archived') throw new Error('Договор недоступен для прикрепления файлов.');
+      x.attachments = [...(x.attachments || []), meta];
+      x.history = [entry('Прикреплён файл: ' + file.name), ...x.history].slice(0, 40);
+      return list;
+    }, 'Файл договора: ' + file.name);
+  }
+  document.addEventListener('change', async e => {
+    const input = e.target.closest('input[data-contract-upload]');
+    if (!input || !cfg || busy || attachmentBusy) return;
+    const cid = input.dataset.contractUpload, files = [...input.files];
+    if (!files.length) return;
+    if (files.some(f => f.size > 5 * 1024 * 1024)) { input.value = ''; return attachmentStatus(cid, 'Файл больше 5 МБ. Выберите файлы меньшего размера.'); }
+    attachmentBusy = true; input.disabled = true;
+    let saved = 0;
+    try {
+      for (const file of files) {
+        attachmentStatus(cid, 'Загружаю: ' + file.name);
+        await uploadAttachment(cid, file); saved++;
+      }
+      attachmentStatus(cid, 'Прикреплено файлов: ' + saved + '.');
+    } catch (err) { attachmentStatus(cid, 'Прикреплено: ' + saved + '. ' + (err.message || 'Ошибка загрузки.')); }
+    finally { attachmentBusy = false; input.disabled = false; input.value = ''; }
+  });
+  document.addEventListener('click', async e => {
+    const button = e.target.closest('button[data-file-download],button[data-file-remove]');
+    if (!button || button.disabled || !cfg || busy || attachmentBusy) return;
+    const cid = button.dataset.contract;
+    const x = contracts.find(x => x.id === cid);
+    const fid = button.dataset.fileDownload || button.dataset.fileRemove;
+    const file = x && (x.attachments || []).find(f => f.id === fid);
+    if (!file) return;
+    attachmentBusy = true; button.disabled = true;
+    try {
+      if (button.dataset.fileRemove) {
+        if (x.status === 'archived') return;
+        if (!window.confirm('Убрать файл «' + file.name + '» из карточки договора?')) return;
+        await mutateC(list => {
+          const current = list.find(y => y.id === cid);
+          if (!current || current.status === 'archived') throw new Error('Договор недоступен.');
+          current.attachments = (current.attachments || []).filter(f => f.id !== fid);
+          current.history = [entry('Убрано вложение: ' + file.name), ...current.history].slice(0, 40);
+          return list;
+        }, 'Убрано вложение договора: ' + file.name);
+        if (ATTACHMENT_DEMO) demoFiles.delete(fid);
+        attachmentStatus(cid, 'Файл убран из карточки.');
+      } else {
+        let blob;
+        if (ATTACHMENT_DEMO) { blob = demoFiles.get(fid); if (!blob) throw new Error('Тестовый файл недоступен. Прикрепите его ещё раз.'); }
+        else {
+          const r = await gh(cfg, attachmentApi(file.path) + '?ref=' + encodeURIComponent(cfg.branch), {headers:{Accept:'application/vnd.github.raw+json'}});
+          if (!r.ok) throw new Error('Не удалось скачать файл (GitHub ' + r.status + ').');
+          blob = await r.blob();
+        }
+        const url = URL.createObjectURL(blob), a = document.createElement('a');
+        a.href = url; a.download = file.name; document.body.append(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      }
+    } catch (err) { attachmentStatus(cid, err.message || 'Не удалось выполнить действие с файлом.'); }
+    finally { attachmentBusy = false; button.disabled = false; }
+  });
+
+  function contractFiles(x) {
+    const id = x.id, s = cCalc(x), d = dis();
+    return `      <section class="ct-files" aria-label="Файлы договора">
+        <b>Файлы договора</b>
+        <ul class="ct-file-list">${(x.attachments || []).map(f => `<li><button type="button" class="ghost" data-file-download="${esc(f.id)}" data-contract="${id}" ${d}>${esc(f.name)}</button> <span class="muted">${Math.max(1, Math.round(f.size / 1024))} КБ</span> ${s.state !== 'archived' ? `<button type="button" class="ghost danger" data-file-remove="${esc(f.id)}" data-contract="${id}" ${d}>Убрать</button>` : ''}</li>`).join('') || '<li class="muted">Файлы пока не прикреплены</li>'}</ul>
+        ${s.state !== 'archived' ? `<button type="button" data-open-upload="${id}" ${d}>Загрузить файлы</button><input type="file" multiple data-contract-upload="${id}" aria-label="Выбрать файлы договора" style="display:none" ${d}><small class="muted">Можно выбрать несколько файлов. До 5 МБ каждый.</small>` : ''}
+        <p class="help" data-file-status="${id}" role="status"></p>
+      </section>
+`;
+  }
+  let landlordTab = 'main';
+  function setLandlordTab(tab) {
+    landlordTab = tab;
+    document.querySelectorAll('#cDlg [data-card-tab]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.cardTab === tab)));
+    document.querySelectorAll('#cDlg [data-card-group]').forEach(label => { label.hidden = label.dataset.cardGroup !== tab; });
+    $('#cDlg .grid').hidden = tab === 'files';
+    $('#kSave').hidden = tab === 'files';
+    $('#kCancel').textContent = tab === 'files' ? 'Закрыть' : 'Отмена';
+    refreshLandlordFiles();
+  }
+  $('#cDlg').addEventListener('click', e => {
+    const button = e.target.closest('button[data-card-tab]');
+    if (button) setLandlordTab(button.dataset.cardTab);
+  });
+  function refreshLandlordFiles() {
+    const box = $('#landlordFiles');
+    const x = contracts.find(x => x.id === cEditId);
+    box.hidden = landlordTab !== 'files';
+    if (!x && landlordTab === 'files') box.innerHTML = '<p class="help">Сначала сохраните новый договор, затем откройте карточку для загрузки файлов.</p>';
+    if (x) box.innerHTML = contractFiles(x);
+  }
+  document.addEventListener('click', e => {
+    const button = e.target.closest('button[data-open-upload]');
+    if (!button || button.disabled || busy || attachmentBusy) return;
+    const input = [...document.querySelectorAll('input[data-contract-upload]')].find(x => x.dataset.contractUpload === button.dataset.openUpload);
+    if (input) input.click();
+  });
+
+  // Комментарий на первой карточке в списке договоров.
+  $('#list').addEventListener('submit', async e => {
+    const form = e.target.closest('form[data-cnote]');
+    if (!form) return;
+    e.preventDefault();
+    if (busy || !cfg) return;
+    const id = form.dataset.cnote, current = contracts.find(x => x.id === id);
+    if (!current || current.status === 'archived') return;
+    const value = form.elements.comment.value.trim().slice(0, 1000);
+    if (value === current.note) return toast('Комментарий уже сохранён.');
+    const button = form.querySelector('button'); button.disabled = true;
+    try {
+      await mutateC(list => {
+        const x = list.find(y => y.id === id);
+        if (!x || x.status === 'archived') throw new Error('Договор недоступен для изменения.');
+        x.note = value;
+        x.history = [entry(value ? 'Комментарий изменён' : 'Комментарий удалён'), ...x.history].slice(0, 40);
+        return list;
+      }, 'Комментарий к договору: ' + current.kc);
+      toast('Комментарий сохранён.');
+    } catch (err) {
+      const restored = [...document.querySelectorAll('form[data-cnote]')].find(f => f.dataset.cnote === id);
+      if (restored) restored.elements.comment.value = value;
+      toast(err.message || 'Не удалось сохранить комментарий.');
+    } finally { button.disabled = false; }
+  });
+
   // форма договора
   const cDlg = $('#cDlg'); const Kf = id => $('#k_' + id); let cEditId = null;
   function fillLists() {
@@ -1099,11 +1279,12 @@ legend{padding:0;margin-bottom:8px}
   }
   function openContract(x) {
     cEditId = x ? x.id : null; fillLists();
-    $('#cTitle').textContent = x ? 'Изменить договор' : 'Новый договор'; $('#kErr').hidden = true;
+    $('#cTitle').textContent = x ? 'Карточка арендодателя' : 'Новый договор'; $('#kErr').hidden = true;
     for (const f of ['kc', 'ip', 'landlord', 'inn', 'number', 'contacts', 'email', 'emergency', 'acts', 'note']) Kf(f).value = x ? x[f] : '';
     Kf('signed').value = x?.signed || ''; Kf('start').value = x?.start || ''; Kf('end').value = x?.end || '';
     Kf('kind').value = x?.kind || 'lease'; $('#k_partyLbl').textContent = partyLabel({ kind: Kf('kind').value });
-    Kf('auto').checked = !!x?.autoRenew; Kf('indef').checked = !!x?.indefinite;
+    Kf('auto').checked = !!x?.autoRenew;
+    setLandlordTab('main');
     cDlg.showModal(); (x ? Kf('landlord') : Kf('kc')).focus();
   }
   $('#cAdd').addEventListener('click', () => openContract(null));
@@ -1115,8 +1296,8 @@ legend{padding:0;margin-bottom:8px}
     const v = f => Kf(f).value.trim();
     if (!v('kc')) return err('Укажите КЦ.');
     if (!v('landlord')) return err(Kf('kind').value === 'sublease' ? 'Укажите субарендатора.' : 'Укажите арендодателя.');
-    const indef = Kf('indef').checked, end = Kf('end').value;
-    if (!indef && !okDate(end)) return err('Укажите дату окончания или отметьте «Бессрочный».');
+    const indef = false, end = Kf('end').value;
+    if (!okDate(end)) return err('Укажите дату окончания.');
     const fields = { kind: Kf('kind').value, kc: v('kc'), ip: v('ip'), landlord: v('landlord'), inn: v('inn'), number: v('number'),
       signed: okDate(Kf('signed').value), start: okDate(Kf('start').value), end: indef ? null : end, autoRenew: Kf('auto').checked, indefinite: indef,
       contacts: v('contacts'), email: v('email'), emergency: v('emergency'), acts: v('acts'), note: v('note') };
@@ -1175,15 +1356,15 @@ legend{padding:0;margin-bottom:8px}
   function openRenew(x) {
     if (!x) return; renewId = x.id; $('#rnErr').hidden = true;
     $('#rnTitle').textContent = `${x.kc} · ${x.landlord}${x.end ? '. Сейчас до ' + fmtFull(x.end) : ''}`;
-    $('#rn_end').value = ''; $('#rn_number').value = ''; $('#rn_auto').checked = x.autoRenew; $('#rn_indef').checked = false;
+    $('#rn_end').value = ''; $('#rn_number').value = ''; $('#rn_auto').checked = x.autoRenew;
     renewDlg.showModal(); $('#rn_end').focus();
   }
   $('#rnCancel').addEventListener('click', () => renewDlg.close());
   $('#renewForm').addEventListener('submit', async e => {
     e.preventDefault();
     const err = m => { $('#rnErr').textContent = m; $('#rnErr').hidden = false; };
-    const indef = $('#rn_indef').checked, end = $('#rn_end').value;
-    if (!indef && !okDate(end)) return err('Укажите новую дату окончания или отметьте «Бессрочный».');
+    const indef = false, end = $('#rn_end').value;
+    if (!okDate(end)) return err('Укажите новую дату окончания.');
     if (!indef && end <= todayISO()) return err('Новая дата окончания должна быть позже сегодняшней.');
     $('#rnSave').disabled = true;
     try {
