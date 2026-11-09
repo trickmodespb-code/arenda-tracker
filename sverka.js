@@ -208,7 +208,9 @@
   }
   function mkRow(side, line, dt, doc, kind, amt) {
     const m = doc.match(/№\s*([^\s(),]+)/) || doc.match(/\(([^\s()]+)\s+от\s+\d/);
-    return { side, line, dt, doc, kind, amt, docNo: m ? m[1].replace(/^0+/, '') : '', group: 0, status: '', note: '' };
+    const dateInDoc = doc.match(/\([^()]*?\b(\d{1,2}\.\d{1,2}\.\d{2,4})\b[^()]*\)/);
+    const docDate = dateInDoc ? parseDate(dateInDoc[1]) : null;
+    return { side, line, dt, doc, docDate, kind, amt, docNo: m ? m[1].replace(/^0+/, '') : '', group: 0, status: '', note: '' };
   }
   const effect = r => r.kind === ACC ? r.amt : -r.amt;
   const closingOf = s => r2(s.opening + s.rows.reduce((a, r) => a + effect(r), 0));
@@ -242,7 +244,8 @@
     let g = 1;
     const free = rows => rows.filter(r => !r.group);
     const link = (a, b, status, note = '') => { const id = g++; [...a, ...b].forEach(r => { r.group = id; r.status = status; r.note = note; }); };
-    const days = (o, t) => Math.abs(o.dt.n - t.dt.n);
+    const date = r => r.docDate || r.dt;
+    const days = (o, t) => Math.abs(date(o).n - date(t).n);
     const same = (o, t) => Math.abs(o.amt - t.amt) < EPS;
     const nums = (o, t) => o.docNo && o.docNo === t.docNo;
     const amounts = (o, t) => `у нас ${fmt(o.amt)}, у ${R.gen} ${fmt(t.amt)}`;
@@ -255,17 +258,19 @@
       }
     };
     const dateStatus = (o, t) => {
-      if (o.dt.n === t.dt.n) return ['ok', ''];
-      const note = `у нас ${dstr(o.dt)}, у ${R.gen} ${dstr(t.dt)}`;
-      return [o.dt.k !== t.dt.k ? 'period' : 'shift', note];
+      const od = date(o), td = date(t);
+      if (od.n === td.n && o.dt.n === t.dt.n) return ['ok', ''];
+      if (od.n === td.n) return ['shift', `дата строки у нас ${dstr(o.dt)}, у ${R.gen} ${dstr(t.dt)}`];
+      return [od.k !== td.k ? 'period' : 'shift', `у нас ${dstr(od)}, у ${R.gen} ${dstr(td)}`];
     };
-    pairwise((o, t) => same(o, t) && o.dt.n === t.dt.n, dateStatus);
+    pairwise((o, t) => same(o, t) && nums(o, t) && days(o, t) === 0, dateStatus);
+    pairwise((o, t) => same(o, t) && days(o, t) === 0, dateStatus);
     pairwise((o, t) => same(o, t) && nums(o, t) && days(o, t) <= 120, dateStatus);
     pairwise((o, t) => same(o, t) && days(o, t) <= maxDays, dateStatus);
     const split = (bigRows, smallRows) => {
       for (const x of free(bigRows)) {
-        const c = free(smallRows).filter(r => r.kind === x.kind && r.amt > 0 && r.amt < x.amt && Math.abs(r.dt.n - x.dt.n) <= maxDays)
-          .sort((a, b) => Math.abs(a.dt.n - x.dt.n) - Math.abs(b.dt.n - x.dt.n)).slice(0, 12);
+        const c = free(smallRows).filter(r => r.kind === x.kind && r.amt > 0 && r.amt < x.amt && days(r, x) <= maxDays)
+          .sort((a, b) => days(a, x) - days(b, x)).slice(0, 12);
         let found = null;
         const rec = (start, n, acc, sum) => {
           if (found) return;
@@ -286,7 +291,7 @@
       const q = Math.max(o.amt, t.amt) / Math.min(o.amt, t.amt);
       return [1.2, 1.05, 1.07, 1.22].some(k => Math.abs(q - k) < 0.0005);
     }, (o, t) => ['vat', amounts(o, t)]);
-    pairwise((o, t) => (nums(o, t) && days(o, t) <= 31) || o.dt.n === t.dt.n,
+    pairwise((o, t) => (nums(o, t) && days(o, t) <= 31) || days(o, t) === 0,
       (o, t) => ['amount', `${amounts(o, t)}, разница ${fmt(t.amt - o.amt)}`]);
     free(their.rows).forEach(r => link([], [r], 'their_' + r.kind, hint(r.doc)));
     free(our.rows).forEach(r => link([r], [], 'our_' + r.kind, hint(r.doc)));
@@ -303,7 +308,7 @@
   }
 
   // ---------- помесячный разбор и обеспечительный ----------
-  const MONTH_STATUS = { ok: 'Оплачено точно', shift: 'Оплата/начисление в другом месяце', over: 'Переплата', under: 'Недоплата', nopay: 'Нет оплаты', empty: '—', deposit: 'Обеспечительный платёж' };
+  const MONTH_STATUS = { ok: 'Оплачено точно', shift: 'Оплата/начисление в другом месяце', over: 'Переплата', under: 'Недоплата', nopay: 'Нет оплаты', empty: '—', deposit: 'Обеспечительный платёж', advance: 'Аванс до начисления' };
   function regularRate(mo) {
     if (!mo.accs.length) return null;
     const cnt = new Map(); mo.accs.forEach(a => cnt.set(a, (cnt.get(a) || 0) + 1));
@@ -325,23 +330,48 @@
     return merged;
   }
   function analyzeMonths(side, window = 2, depMult = 1) {
-    const ks = side.rows.map(r => r.dt.k);
-    const k0 = Math.min(...ks), k1 = Math.max(...ks);
-    const ms = [];
-    for (let k = k0; k <= k1; k++) ms.push({ k, acc: 0, pay: 0, accs: [], pays: [], res: 0, dep: 0, notes: [], status: '', balance: 0 });
+    const byMonth = new Map();
+    const month = k => {
+      if (!byMonth.has(k)) byMonth.set(k, { k, acc: 0, pay: 0, accs: [], pays: [], ledger: 0, shiftable: 0, advance: 0, res: 0, dep: 0, notes: [], status: '', balance: 0 });
+      return byMonth.get(k);
+    };
+    const payments = [];
     side.rows.forEach(r => {
-      const mo = ms[r.dt.k - k0];
-      if (r.kind === ACC) { mo.acc = r2(mo.acc + r.amt); mo.accs.push(r.amt); } else { mo.pay = r2(mo.pay + r.amt); mo.pays.push(r.amt); }
+      const booked = month(r.dt.k);
+      booked.ledger = r2(booked.ledger + effect(r));
+      const date = r.docDate || r.dt;
+      if (r.kind === PAY) { payments.push({ r, date }); return; }
+      const mo = month(date.k);
+      mo.acc = r2(mo.acc + r.amt);
+      mo.accs.push(r.amt);
     });
-    ms.forEach(mo => { mo.diff = r2(mo.pay - mo.acc); mo.res = mo.diff; });
-    // оплата «за два месяца разом» и пустой соседний месяц гасят друг друга
+    payments.sort((a, b) => a.date.n - b.date.n).forEach(({ r, date }) => {
+      let mo = month(date.k);
+      // Если аренда за текущий месяц уже закрыта, поздняя оплата может быть за следующий.
+      const advance = r.docDate && date.d >= 20 && r.amt > EPS && mo.acc > EPS && mo.pay >= mo.acc
+        && !/обеспечит|депозит|гарантийн|залог|пени|штраф|коммун/i.test(r.doc);
+      if (advance) {
+        mo = month(date.k + 1);
+        mo.notes.push(`${fmt(r.amt)} оплачено заранее, ${dstr(date)}`);
+        if (mo.acc < EPS) mo.advance = r2(mo.advance + r.amt);
+      }
+      mo.pay = r2(mo.pay + r.amt);
+      mo.pays.push(r.amt);
+      if (!r.docDate) mo.shiftable = r2(mo.shiftable + r.amt);
+    });
+    const ks = [...byMonth.keys()];
+    const ms = [];
+    for (let k = Math.min(...ks), end = Math.max(...ks); k <= end; k++) ms.push(month(k));
+    ms.forEach(mo => { mo.diff = r2(mo.pay - mo.acc); mo.res = r2(mo.diff - mo.advance); });
+    // Для оплат без даты в скобках оставляем подбор по суммам соседних месяцев.
     ms.forEach((mo, i) => {
       if (mo.res >= -EPS) return;
       const c = [];
-      for (let j = Math.max(0, i - window); j <= Math.min(ms.length - 1, i + window); j++) if (j !== i && ms[j].res > EPS) c.push(j);
+      for (let j = Math.max(0, i - window); j <= Math.min(ms.length - 1, i + window); j++) if (j !== i && ms[j].res > EPS && ms[j].shiftable > EPS) c.push(j);
       c.sort((a, b) => Math.abs(a - i) - Math.abs(b - i) || a - b);
       for (const j of c) {
-        const t = r2(Math.min(ms[j].res, -mo.res)), o = ms[j];
+        const o = ms[j], t = r2(Math.min(o.res, o.shiftable, -mo.res));
+        o.shiftable = r2(o.shiftable - t);
         o.res = r2(o.res - t); mo.res = r2(mo.res + t);
         if (o.acc < EPS) { o.notes.push(`нет начисления — похоже, оно проведено в ${mlabel(mo.k)}`); mo.notes.push(`в т.ч. начисление за ${mlabel(o.k)} (${fmt(t)})`); }
         else if (j < i) { o.notes.push(`${fmt(t)} — оплата вперёд за ${mlabel(mo.k)}`); mo.notes.push(`${fmt(t)} оплачено заранее, в ${mlabel(o.k)}`); }
@@ -352,8 +382,9 @@
     const dep = attributeDeposit(ms, side, depMult);
     let bal = side.opening;
     ms.forEach((mo, i) => {
-      bal = r2(bal + mo.acc - mo.pay); mo.balance = bal;
+      bal = r2(bal + mo.ledger); mo.balance = bal;
       if (mo.acc < EPS && mo.pay < EPS) mo.status = 'empty';
+      else if (mo.advance > EPS && Math.abs(mo.res) < EPS) mo.status = 'advance';
       else if (Math.abs(mo.res) < EPS) mo.status = mo.dep > EPS ? 'deposit' : Math.abs(mo.diff) < EPS ? 'ok' : 'shift';
       else if (mo.res > 0) mo.status = 'over';
       else mo.status = mo.pay < EPS ? 'nopay' : 'under';
@@ -427,7 +458,7 @@
       const pairs = new Set(m.filter(x => x.pays.length === 1 && x.accs.length === 1).map(x => `${x.pay}|${x.acc}`));
       if (pairs.size === 1) { const [pay, acc] = [...pairs][0].split('|').map(Number); parts.push(`оплачено ${fmt(pay)} при начислении ${fmt(acc)}`); }
       else if (m.length === 1) {
-        const x = m[0], moved = r2(x.diff - x.res - x.dep);
+        const x = m[0], moved = r2(x.diff - x.res - x.dep - x.advance);
         let t = `оплачено ${fmt(x.pay)} при начислении ${fmt(x.acc)}`;
         if (Math.abs(moved) > EPS) t += `, из них ${fmt(Math.abs(moved))} — в счёт соседних месяцев`;
         if (x.dep > EPS) t += `, ${fmt(x.dep)} — обеспечительный`;
@@ -439,7 +470,7 @@
     });
     return out;
   }
-  function depositLines(side, dep, periods) {
+  function depositLines(side, { dep, periods, ms }) {
     if (!dep.finalRate) return [];
     const lines = [];
     const advance = r2(-closingOf(side));
@@ -451,9 +482,11 @@
     }
     if (dep.note) lines.push([dep.note, false]);
     const parts = [`обеспечительный ${fmt(dep.found)}`, `переплаты/недоплаты по месяцам ${fmt(rest)}`];
+    const prepaid = r2(ms.reduce((a, mo) => a + mo.advance, 0));
+    if (prepaid > EPS) parts.push(`оплата вперёд до начисления ${fmt(prepaid)}`);
     if (Math.abs(side.opening) > EPS) parts.unshift(`аванс на начало ${fmt(-side.opening)}`);
     lines.push([`Аванс арендатора на конец периода ${fmt(advance)} = ${parts.join(' + ')}.`, false]);
-    const excess = r2(advance - dep.expected);
+    const excess = r2(advance - dep.expected - prepaid);
     if (dep.hidden) lines.push(['Сравнить аванс с обеспечительным по этому акту нельзя — нужен учёт обеспечительного.', true]);
     else if (excess > EPS) lines.push([`Сверх положенного обеспечительного переплачено ${fmt(excess)} — это и надо разбирать.`, true]);
     else if (excess < -EPS) lines.push([`Аванса не хватает до положенного обеспечительного на ${fmt(-excess)} — обеспечительный внесён не полностью или есть долг по аренде.`, true]);
@@ -521,7 +554,7 @@
   const maxDate = rows => rows.reduce((a, r) => r.dt.n > a.n ? r.dt : a, rows[0].dt);
 
   // ---------- отчёт на странице ----------
-  const MONTH_CLS = { ok: 'ok', shift: 'sh', deposit: 'dp', over: 'ov', under: 'un', nopay: 'np' };
+  const MONTH_CLS = { ok: 'ok', shift: 'sh', deposit: 'dp', advance: 'sh', over: 'ov', under: 'un', nopay: 'np' };
   const GROUP_CLS = { ok: 'ok', shift: 'ok', split: 'sh', period: 'ov', round: 'ov', vat: 'ov', amount: 'un', their_acc: 'np', their_pay: 'np', our_acc: 'np', our_pay: 'np' };
   function renderResult(res) {
     const { R, our, their, groups, months, warnings } = res;
@@ -565,11 +598,11 @@
         const short = r2(Math.max(0, e.expected - e.found));
         return { cls: short > EPS ? 'un' : 'dp', cells: [e.what, e.when, fmt(e.expected), fmt(e.found), fmt(short)] };
       }), [2, 3, 4]));
-      depositLines(our, dep, periods).forEach(([t, b]) => h.push(`<p class="${b ? 'rc-strong' : 'help'}">${esc(t)}</p>`));
+      depositLines(our, months).forEach(([t, b]) => h.push(`<p class="${b ? 'rc-strong' : 'help'}">${esc(t)}</p>`));
     }
     h.push(`<details class="set"><summary>Все месяцы <span>(${months.ms.length})</span></summary>${table(['Месяц', 'Ставка', 'Начислено', 'Оплачено', 'Расхождение', 'Статус', 'Комментарий'],
       months.ms.map(mo => ({ cls: MONTH_CLS[mo.status] || '', cells: [mlabel(mo.k), regularRate(mo) == null ? '' : fmt(regularRate(mo)), fmt(mo.acc), fmt(mo.pay), fmt(mo.res), MONTH_STATUS[mo.status], mo.notes.join('; ')] })), [1, 2, 3, 4])}</details>`);
-    h.push(`<p class="help">Распределение по месяцам и обеспечительному сделано по суммам и датам; назначение платежей программа не видит. Проверяйте выводы по договору и выписке.</p>`);
+    h.push(`<p class="help">Месяц начисления и оплаты определяется по дате в скобках, а при её отсутствии — по дате строки акта. Оплата с 20-го числа при уже закрытой аренде за текущий месяц считается авансом за следующий. Проверяйте назначение таких оплат по выписке.</p>`);
     return h.join('');
   }
   function table(head, rows, numCols = []) {
@@ -638,7 +671,7 @@
         r++; head(ws, r, ['Событие', 'Месяц', 'Ожидалось', 'Найдено в оплатах', 'Не хватает']);
         dep.events.forEach(e => { r++; const short = r2(Math.max(0, e.expected - e.found)); [e.what, e.when, e.expected, e.found, short].forEach((v, i) => put(ws, r, i + 1, v, { wrap: true, money: i >= 2, fill: short > EPS ? 'un' : 'dp' })); });
       }
-      depositLines(our, dep, periods).forEach(([t, b]) => { r++; plain(ws, r, t, b ? { bold: true } : {}); });
+      depositLines(our, months).forEach(([t, b]) => { r++; plain(ws, r, t, b ? { bold: true } : {}); });
     }
     [40, 22, 18, 50, 70].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
@@ -686,7 +719,7 @@
     let r4 = 2;
     months.ms.forEach(mo => {
       r4++; const f = MONTH_CLS[mo.status];
-      [mlabel(mo.k), regularRate(mo), mo.acc, mo.pay, mo.diff, r2(mo.res + mo.dep - mo.diff), mo.dep, mo.res, mo.balance, MONTH_STATUS[mo.status], mo.notes.join('; ')]
+      [mlabel(mo.k), regularRate(mo), mo.acc, mo.pay, mo.diff, r2(mo.res + mo.dep + mo.advance - mo.diff), mo.dep, mo.res, mo.balance, MONTH_STATUS[mo.status], mo.notes.join('; ')]
         .forEach((v, i) => put(w4, r4, i + 1, v, { fill: f, money: i >= 1 && i <= 8, wrap: i === 10 }));
     });
     [11, 13, 13, 13, 14, 15, 15, 13, 18, 26, 60].forEach((w, i) => { w4.getColumn(i + 1).width = w; });
